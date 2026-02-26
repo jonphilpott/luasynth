@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LuaSynth — Architecture &amp; Lua Embedding Tutorial</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --bg2:      #161b22;
+    --bg3:      #21262d;
+    --border:   #30363d;
+    --text:     #c9d1d9;
+    --heading:  #e6edf3;
+    --accent:   #58a6ff;
+    --accent2:  #3fb950;
+    --accent3:  #d29922;
+    --accent4:  #f78166;
+    --code-bg:  #0d1117;
+    --tag-bg:   #1f3d5c;
+    --tag-text: #79c0ff;
+    --warn:     #f85149;
+    --callout-bg: #1a2535;
+    --callout-border: #388bfd;
+    --tip-bg:   #1a2a1a;
+    --tip-border: #3fb950;
+    --warn-bg:  #2a1a1a;
+    --warn-border: #f85149;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .layout { display: flex; min-height: 100vh; }
+  nav {
+    width: 270px;
+    min-width: 230px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  nav .logo {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--heading);
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+  }
+  nav .logo span { color: var(--accent); }
+  nav .subtitle {
+    font-size: 12px;
+    color: #8b949e;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  nav ul { list-style: none; }
+  nav li { margin: 2px 0; }
+  nav a {
+    display: block;
+    padding: 5px 10px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+  }
+  nav a:hover { background: var(--bg3); color: var(--heading); text-decoration: none; }
+  nav .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b949e;
+    margin: 16px 0 4px 10px;
+  }
+  nav a.sub { padding-left: 22px; color: #8b949e; font-size: 12px; }
+  nav a.sub:hover { color: var(--heading); }
+
+  /* Content */
+  .content {
+    flex: 1;
+    max-width: 920px;
+    padding: 40px 52px;
+  }
+
+  h1 { font-size: 34px; color: var(--heading); margin-bottom: 10px; }
+  .lead { font-size: 17px; color: #8b949e; margin-bottom: 32px; line-height: 1.5; }
+  h2 {
+    font-size: 24px; color: var(--heading);
+    margin: 48px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 { font-size: 18px; color: var(--heading); margin: 32px 0 12px; }
+  h4 { font-size: 14px; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin: 24px 0 8px; }
+  p  { margin: 12px 0; }
+  ul, ol { margin: 10px 0 10px 26px; }
+  li { margin: 5px 0; }
+  strong { color: var(--heading); }
+
+  /* Code */
+  code {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    background: var(--bg3);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: #e6edf3;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #e6edf3;
+  }
+  pre .c   { color: #8b949e; }   /* comments */
+  pre .kw  { color: #ff7b72; }   /* C keywords */
+  pre .lkw { color: #ff7b72; }   /* Lua keywords */
+  pre .str { color: #a5d6ff; }   /* strings */
+  pre .num { color: #79c0ff; }   /* numbers */
+  pre .fn  { color: #d2a8ff; }   /* function names */
+  pre .type{ color: #ffa657; }   /* types / macros */
+
+  /* Callouts */
+  .callout {
+    background: var(--callout-bg);
+    border-left: 3px solid var(--callout-border);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+  }
+  .callout .label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .tip {
+    background: var(--tip-bg);
+    border-left: 3px solid var(--tip-border);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+  }
+  .tip .label { color: var(--accent2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+  .warn {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn-border);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+  }
+  .warn .label { color: var(--warn); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+
+  /* Diagram */
+  .diagram-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .diagram {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    white-space: pre;
+    color: var(--text);
+  }
+  .diagram .box {
+    display: inline-block;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    color: var(--heading);
+    font-weight: 600;
+  }
+  .diagram .arrow { color: #58a6ff; }
+  .diagram .label2 { color: #8b949e; font-size: 12px; }
+
+  /* Layer diagram */
+  .layers {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 20px 0;
+    max-width: 600px;
+  }
+  .layer {
+    border-radius: 8px;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .layer .num {
+    font-size: 12px;
+    font-weight: 700;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .layer .title { font-weight: 600; color: var(--heading); }
+  .layer .desc  { font-size: 13px; color: #8b949e; }
+  .layer-lua    { background: #1a2535; border: 1px solid #388bfd; }
+  .layer-lua .num { background: #388bfd; color: #fff; }
+  .layer-bind   { background: #1a2c1a; border: 1px solid #3fb950; }
+  .layer-bind .num { background: #3fb950; color: #000; }
+  .layer-graph  { background: #2a1f10; border: 1px solid #d29922; }
+  .layer-graph .num { background: #d29922; color: #000; }
+  .layer-audio  { background: #2a1020; border: 1px solid #bc4a8e; }
+  .layer-audio .num { background: #bc4a8e; color: #fff; }
+  .layer-arrow {
+    text-align: center;
+    color: #8b949e;
+    font-size: 18px;
+    line-height: 1;
+    margin: 0;
+  }
+
+  /* Stack diagram for stack state */
+  .lua-stack {
+    display: inline-flex;
+    flex-direction: column-reverse;
+    gap: 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    background: var(--bg2);
+    min-width: 200px;
+  }
+  .lua-stack .slot {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: "SF Mono", "Cascadia Code", monospace;
+    font-size: 12px;
+    color: var(--heading);
+    display: flex;
+    justify-content: space-between;
+  }
+  .lua-stack .slot .idx { color: #8b949e; }
+  .lua-stack .slot.top { border-color: var(--accent); }
+  .stack-label { font-size: 11px; color: #8b949e; margin-bottom: 6px; font-weight: 600; text-transform: uppercase; }
+
+  /* Thread diagram */
+  .threads {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr;
+    gap: 0;
+    margin: 20px 0;
+    align-items: start;
+  }
+  .thread-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .thread-box .thread-name {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .thread-main .thread-name { color: var(--accent); }
+  .thread-audio .thread-name { color: var(--accent3); }
+  .thread-box ul { margin-left: 16px; }
+  .thread-box li { font-size: 13px; margin: 4px 0; }
+  .thread-middle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 20px 0;
+  }
+  .sync-badge {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    color: #8b949e;
+  }
+
+  /* Step numbering */
+  .steps { counter-reset: step; list-style: none; margin: 14px 0 14px 0; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 14px;
+    margin: 10px 0;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 12px;
+    min-width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* File reference */
+  .file-ref {
+    display: inline-block;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-family: "SF Mono", "Cascadia Code", monospace;
+    font-size: 12px;
+    color: var(--accent3);
+  }
+
+  /* Section divider */
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 48px 0;
+  }
+
+  /* Inline badge */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-c   { background: #2a3f6f; color: #79c0ff; }
+  .badge-lua { background: #1a3a5c; color: #58a6ff; }
+  .badge-rt  { background: #3a2a10; color: #d29922; }
+
+  /* Summary table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--bg3);
+    color: #8b949e;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ═══════════════════════════════════════════════════════════════════ NAV -->
+<nav>
+  <div class="logo">Lua<span>Synth</span></div>
+  <div class="subtitle">Architecture &amp; Embedding Tutorial</div>
+  <div class="section-label">Introduction</div>
+  <ul>
+    <li><a href="#what-is-this">What is this tutorial?</a></li>
+    <li><a href="#what-is-embedding">What is Lua embedding?</a></li>
+  </ul>
+  <div class="section-label">Architecture</div>
+  <ul>
+    <li><a href="#four-layers">The Four Layers</a></li>
+    <li><a href="#startup">Startup Sequence</a></li>
+    <li><a href="#signal-graph">The Signal Graph</a></li>
+    <li><a href="#audio-engine">The Audio Engine</a></li>
+    <li><a href="#event-loop">The Event Loop</a></li>
+  </ul>
+  <div class="section-label">Lua Embedding</div>
+  <ul>
+    <li><a href="#lua-state">Creating the Lua State</a></li>
+    <li><a href="#cfunctions">Registering C Functions</a></li>
+    <li><a href="#userdata">Full Userdata Pattern</a></li>
+    <li><a href="#metatables">Metatables &amp; OOP</a></li>
+    <li><a href="#registry">The Lua Registry</a></li>
+    <li><a href="#callbacks">Storing Callbacks</a></li>
+  </ul>
+  <div class="section-label">Threading</div>
+  <ul>
+    <li><a href="#threads">Two-Thread Model</a></li>
+    <li><a href="#locks">Locks &amp; Atomics</a></li>
+    <li><a href="#ringbuffer">The Ring Buffer</a></li>
+  </ul>
+  <div class="section-label">Walkthroughs</div>
+  <ul>
+    <li><a href="#walkthrough-01">Example 01: Sine Tone</a></li>
+    <li><a href="#walkthrough-04">Example 04: Clock &amp; Envelopes</a></li>
+    <li><a href="#adding-module">Adding a New Module</a></li>
+  </ul>
+  <div class="section-label">Summary</div>
+  <ul>
+    <li><a href="#key-lessons">Key Lessons</a></li>
+  </ul>
+  <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+    <a href="index.html" style="font-size:13px; color:#8b949e;">← API Reference</a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════ CONTENT -->
+<div class="content">
+
+<h1>LuaSynth: Architecture &amp; Lua Embedding Tutorial</h1>
+<p class="lead">
+  A deep dive into how LuaSynth works — from the SDL2 audio callback thread to Lua userdata
+  metatables, lock-free ring buffers, and the pull-model signal graph. This document teaches
+  you <em>how</em> to build a scriptable C application using Lua as a runtime scripting engine.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="what-is-this">What Is This Tutorial?</h2>
+
+<p>
+  LuaSynth is deliberately small. Its purpose is not to be the world's most sophisticated
+  synthesizer — it is to be a clear, well-commented demonstration of how to embed the Lua
+  scripting language inside a real-time C application that also has to manage audio hardware.
+</p>
+
+<p>
+  By the end of this tutorial you will understand:
+</p>
+
+<ul>
+  <li>What it means to "embed" Lua and why you might want to do it</li>
+  <li>How the four architectural layers of LuaSynth fit together</li>
+  <li>The <strong>pull-model signal graph</strong> that powers real-time audio</li>
+  <li>How to expose C objects to Lua using <strong>full userdata</strong> and <strong>metatables</strong></li>
+  <li>How to store Lua callbacks in C and call them safely</li>
+  <li>How two threads (main + SDL audio) share state without data races</li>
+  <li>How a lock-free <strong>SPSC ring buffer</strong> passes events from the audio thread to Lua</li>
+</ul>
+
+<div class="callout">
+  <div class="label">Prerequisites</div>
+  You should be comfortable with C (pointers, structs, function pointers). Some familiarity
+  with Lua syntax is helpful but not required — the Lua snippets are simple enough to follow
+  cold. No DSP experience is necessary; the audio concepts are explained as they appear.
+</div>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="what-is-embedding">What Is Lua Embedding?</h2>
+
+<p>
+  Lua is often described as a "scripting language designed to be embedded." That phrase
+  deserves unpacking, because it explains every architectural decision in this project.
+</p>
+
+<h3>Two ways to use a scripting language</h3>
+
+<p>
+  Most scripting languages run as standalone interpreters: you type <code>python myscript.py</code>
+  and the Python runtime owns the process. The C code lives inside the Python interpreter,
+  not the other way around.
+</p>
+
+<p>
+  <strong>Embedding flips this relationship.</strong> Your C application is the host. It
+  creates a Lua interpreter as a library object — a <code>lua_State*</code> — and loads
+  scripts into it at runtime. The C code controls when scripts run, what functions they can
+  call, and what data they can access. Lua becomes a safe, sandboxed scripting layer that
+  can configure and control the C application without being able to crash it (or at least,
+  without being <em>able to do anything you didn't give it permission to do</em>).
+</p>
+
+<div class="diagram-wrap">
+  <div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap;">
+    <div>
+      <div class="stack-label">Standalone</div>
+      <div class="lua-stack">
+        <div class="slot"><span>Your Script</span><span class="idx">top</span></div>
+        <div class="slot"><span>Lua Runtime</span></div>
+        <div class="slot"><span>OS / Kernel</span></div>
+      </div>
+    </div>
+    <div style="font-size:28px; color:#8b949e;">→</div>
+    <div>
+      <div class="stack-label">Embedded</div>
+      <div class="lua-stack">
+        <div class="slot"><span>Your Script</span><span class="idx">top</span></div>
+        <div class="slot"><span>Lua Runtime (library)</span></div>
+        <div class="slot"><span style="color:var(--accent2)">Your C Application</span></div>
+        <div class="slot"><span>OS / Kernel</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>Why embed Lua specifically?</h3>
+
+<p>
+  Lua was designed from day one for embedding. The entire Lua runtime is around 300 KB of
+  compiled code. It has no global mutable state (everything lives in a <code>lua_State</code>),
+  so you can run multiple independent interpreters in the same process. The C API is clean,
+  stack-based, and thoroughly documented. Its garbage collector is incremental. And Lua's
+  syntax is expressive enough to write real music composition logic while remaining easy
+  enough to learn in an afternoon.
+</p>
+
+<h3>The pattern LuaSynth uses</h3>
+
+<p>
+  LuaSynth follows the standard embedded-Lua pattern used by many production applications
+  (game engines, text editors, network servers):
+</p>
+
+<ol>
+  <li>C creates a <code>lua_State</code> and loads the standard libraries</li>
+  <li>C registers custom functions and objects (the "bindings") into the Lua global table</li>
+  <li>C runs a user-supplied <code>.lua</code> script</li>
+  <li>The script uses the registered objects to configure the application</li>
+  <li>The script returns; the application runs indefinitely, driven by the configuration</li>
+  <li>When things happen (beats fire, parameters change), C calls back into Lua</li>
+</ol>
+
+<p>
+  In LuaSynth the "application" is a modular synthesizer and the "configuration" is a signal
+  patch — a directed acyclic graph of audio modules wired together.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="four-layers">The Four Layers</h2>
+
+<p>
+  LuaSynth has four architectural layers that sit cleanly on top of each other. Understanding
+  where each layer lives, and what it owns, is the key to understanding the whole system.
+</p>
+
+<div class="layers">
+  <div class="layer layer-lua">
+    <div class="num">4</div>
+    <div>
+      <div class="title">Lua Script Layer</div>
+      <div class="desc">User scripts (<code>scripts/examples/*.lua</code>). Creates modules, wires them together, registers callbacks. Runs once on startup, then responds to beat events.</div>
+    </div>
+  </div>
+  <div class="layer-arrow">↕</div>
+  <div class="layer layer-bind">
+    <div class="num">3</div>
+    <div>
+      <div class="title">Lua Binding Layer</div>
+      <div class="desc"><code>src/lua_bindings/</code> — Wraps every C module in a Lua-accessible object. Handles type checking, thread locking, and callback registration.</div>
+    </div>
+  </div>
+  <div class="layer-arrow">↕</div>
+  <div class="layer layer-graph">
+    <div class="num">2</div>
+    <div>
+      <div class="title">Signal Graph Layer</div>
+      <div class="desc"><code>src/signal_graph.c</code>, <code>src/module.h</code>, <code>src/modules/</code> — The DAG of audio modules. Pull model: each module asks its inputs for samples, then transforms them.</div>
+    </div>
+  </div>
+  <div class="layer-arrow">↕</div>
+  <div class="layer layer-audio">
+    <div class="num">1</div>
+    <div>
+      <div class="title">SDL2 Audio Engine</div>
+      <div class="desc"><code>src/audio_engine.c</code> — Opens the hardware audio device. SDL calls our callback on a dedicated realtime thread to fill each buffer of audio.</div>
+    </div>
+  </div>
+</div>
+
+<p>
+  The arrows between layers are strictly controlled. The script layer only talks to C via
+  the binding functions we explicitly register. The binding layer is the gatekeeper: it
+  validates arguments, acquires locks before modifying audio parameters, and mediates all
+  cross-thread communication.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="startup">Startup Sequence</h2>
+
+<p>
+  <span class="file-ref">src/main.c</span> performs every initialisation step in dependency
+  order, then runs the event loop forever. Here is the sequence:
+</p>
+
+<ol class="steps">
+  <li>
+    <div>
+      <strong>Initialise SDL2.</strong> <code>SDL_Init(SDL_INIT_AUDIO)</code> loads the audio
+      subsystem. Nothing else (no video, no events) is needed.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Create the signal graph.</strong> <code>signal_graph_init()</code> zeroes the
+      graph struct. It is empty — no modules yet. Lua will populate it.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Create the ring buffer.</strong> Used to pass clock beat events from the audio
+      thread to the main thread. Initialised before the audio device so there is no race.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Open the audio device.</strong> <code>audio_engine_init()</code> calls
+      <code>SDL_OpenAudioDevice()</code> and starts the SDL audio callback thread. From this
+      point the callback fires every ~11.6 ms, pulling from the (still-empty) signal graph
+      and outputting silence.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Initialise the Lua engine.</strong> Creates a <code>lua_State</code>, loads all
+      standard libraries, stores the engine pointer in the Lua registry, then calls each
+      <code>lua_XXX_register()</code> function to install the module bindings as Lua globals.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Run the Lua script.</strong> <code>luaL_dofile()</code> parses and executes the
+      user's patch script. The script runs synchronously on the main thread. When it returns,
+      the patch is wired and the audio thread is producing real sound.
+    </div>
+  </li>
+  <li>
+    <div>
+      <strong>Enter the event loop.</strong> The main thread polls SDL events (for quit), calls
+      <code>lua_engine_poll()</code> to drain beat events and fire Lua callbacks, then sleeps
+      1 ms. This continues until the user presses Ctrl-C.
+    </div>
+  </li>
+</ol>
+
+<pre><span class="c">/* From main.c — the event loop */</span>
+<span class="kw">while</span> (running) {
+    <span class="c">/* 1. Handle Ctrl-C / window close */</span>
+    <span class="kw">while</span> (<span class="fn">SDL_PollEvent</span>(&amp;event)) {
+        <span class="kw">if</span> (event.type == SDL_QUIT) running = 0;
+    }
+
+    <span class="c">/* 2. Drain clock beat events → call Lua callback functions */</span>
+    <span class="fn">lua_engine_poll</span>(&amp;lua_engine);
+
+    <span class="c">/* 3. Yield the CPU so we don't spin at 100% */</span>
+    <span class="fn">SDL_Delay</span>(1);
+}</pre>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="signal-graph">The Signal Graph</h2>
+
+<h3>The pull model</h3>
+
+<p>
+  Audio graphs can work in two directions. A <strong>push</strong> model has sources generate
+  samples and push them downstream through the graph. A <strong>pull</strong> model has the
+  output sink ask its upstream neighbours for samples, which in turn ask their neighbours —
+  recursively, up the graph — until everyone has computed what they need.
+</p>
+
+<p>
+  LuaSynth uses the pull model, which is the standard choice for low-latency audio. The
+  SDL audio callback fires and asks the signal graph for <em>N</em> frames. The graph calls
+  <code>output_module-&gt;process()</code>. The output module calls <code>process()</code>
+  on each of its inputs, which in turn call their inputs, and so on. The recursion bottoms
+  out at leaf nodes (oscillators, noise generators) that synthesise samples from scratch.
+</p>
+
+<div class="diagram-wrap">
+  <div class="diagram"><span style="color:#8b949e">                    Pull direction (requests)</span>
+<span style="color:var(--accent)"> ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←</span>
+
+ <span style="color:var(--accent4)">Osc</span>   →    <span style="color:var(--accent3)">Filter</span>   →   <span style="color:var(--accent3)">Delay</span>   →   <span style="color:var(--accent2)">Output</span>  →  <span style="color:#8b949e">SDL callback</span>
+         ↑
+        <span style="color:#d2a8ff">LFO</span> (mod input)
+
+<span style="color:var(--accent)"> →→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→→</span>
+<span style="color:#8b949e">                    Data direction (samples)</span></div>
+</div>
+
+<h3>The Module struct</h3>
+
+<p>
+  Every source and processor in the graph is a <code>Module</code> — a single C struct defined
+  in <span class="file-ref">src/module.h</span>. It uses the <strong>composition pattern</strong>:
+  a <code>void *data</code> pointer holds the module-specific state (oscillator phase,
+  filter coefficients, etc.) and two function pointers (<code>process</code>,
+  <code>destroy</code>) act as a lightweight vtable.
+</p>
+
+<pre><span class="kw">struct</span> <span class="type">Module</span> {
+    <span class="type">ModuleType</span>   type;          <span class="c">/* OSC, FILTER, LFO, etc. */</span>
+
+    <span class="c">/* Audio-rate signal connections (upstream producers) */</span>
+    <span class="type">Module</span>      *inputs[<span class="type">MODULE_MAX_INPUTS</span>];
+    <span class="kw">int</span>          num_inputs;
+
+    <span class="c">/* Control-rate modulation connections (LFOs → params) */</span>
+    <span class="type">ModInput</span>     mod_inputs[<span class="type">MODULE_MAX_MOD_INPUTS</span>];
+    <span class="kw">int</span>          num_mod_inputs;
+
+    <span class="c">/* Virtual dispatch — set once at creation time */</span>
+    <span class="kw">int</span>  (*process)(<span class="type">Module</span> *self, <span class="kw">float</span> *out_buf, <span class="kw">int</span> frames, <span class="kw">int</span> rate);
+    <span class="kw">void</span> (*destroy)(<span class="type">Module</span> *self);
+
+    <span class="kw">void</span>        *data;         <span class="c">/* OscData*, FilterData*, etc. */</span>
+    <span class="kw">int</span>          in_graph;     <span class="c">/* 1 = owned by the signal graph */</span>
+    <span class="kw">float</span>        scratch[<span class="type">MODULE_SCRATCH_SAMPLES</span>]; <span class="c">/* pre-allocated temp buffer */</span>
+};</pre>
+
+<p>
+  The <code>scratch</code> buffer deserves attention. The audio callback is a real-time
+  context: you must never allocate memory inside it (malloc can block on a mutex inside the
+  OS allocator). By pre-allocating a scratch buffer inside every module struct, each module
+  always has a place to temporarily store an upstream module's output without calling malloc.
+</p>
+
+<h3>Connecting modules</h3>
+
+<p>
+  <code>module_connect(dst, src)</code> simply adds <code>src</code> to <code>dst-&gt;inputs[]</code>.
+  When <code>dst-&gt;process()</code> runs, it iterates <code>inputs[]</code>, calling each
+  upstream module's <code>process()</code> into <code>self-&gt;scratch</code>, then adds those
+  samples into its own output buffer — achieving additive mixing of audio-rate signals.
+</p>
+
+<p>
+  Control-rate modulation (LFOs sweeping filter cutoff) uses a separate
+  <code>mod_inputs[]</code> array. The target module's <code>process()</code> reads the
+  modulator's output per-sample and adds it (scaled by depth) to the base parameter value
+  before computing its own output.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="audio-engine">The Audio Engine</h2>
+
+<p>
+  <span class="file-ref">src/audio_engine.c</span> wraps SDL2's audio API. The core idea
+  is simple: we tell SDL what format we want (<code>SDL_AUDIO_F32</code>, 44100 Hz,
+  stereo, 512 frames per buffer) and give it a callback function pointer. SDL creates a
+  dedicated OS thread and calls our callback whenever the hardware needs more audio data.
+</p>
+
+<pre><span class="c">/* SDL calls this on its audio thread every ~11.6 ms */</span>
+<span class="kw">static void</span> <span class="fn">sdl_audio_callback</span>(<span class="kw">void</span> *userdata, <span class="type">Uint8</span> *stream, <span class="kw">int</span> len) {
+    <span class="type">AudioEngine</span> *engine = (<span class="type">AudioEngine</span> *)userdata;
+
+    <span class="c">/* How many stereo frames fit in the byte buffer?
+     * Each frame = 2 channels × 4 bytes (float32) = 8 bytes */</span>
+    <span class="kw">int</span> bytes_per_frame = <span class="type">AUDIO_CHANNELS</span> * (<span class="kw">int</span>)<span class="kw">sizeof</span>(<span class="kw">float</span>);
+    <span class="kw">int</span> num_frames      = len / bytes_per_frame;
+
+    <span class="c">/* Pull samples from the signal graph into SDL's buffer */</span>
+    <span class="fn">signal_graph_process</span>(engine-&gt;graph, (<span class="kw">float</span> *)stream, num_frames,
+                         engine-&gt;sample_rate);
+}</pre>
+
+<div class="callout">
+  <div class="label">Real-time constraint</div>
+  The audio callback must return within ~11.6 ms (at 44100 Hz / 512 frames). If it takes
+  longer, SDL's buffer underruns and you hear glitches. This is why the callback cannot
+  allocate memory, cannot acquire non-trivial locks, and cannot call Lua. All those
+  operations have unbounded latency.
+</div>
+
+<p>
+  The lock functions <code>audio_engine_lock()</code> / <code>audio_engine_unlock()</code>
+  wrap <code>SDL_LockAudioDevice()</code> / <code>SDL_UnlockAudioDevice()</code>. Calling
+  <code>SDL_LockAudioDevice()</code> from the main thread blocks until the current audio
+  callback invocation finishes, then pauses the callback from starting again until
+  <code>SDL_UnlockAudioDevice()</code> is called. This gives the main thread a safe window
+  to write parameters that the audio thread reads.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="event-loop">The Event Loop</h2>
+
+<p>
+  After the Lua script runs, <code>main.c</code> enters a <code>while(running)</code> loop
+  that does three things per iteration:
+</p>
+
+<ol>
+  <li>Poll SDL events — catches window-close and Ctrl-C on some platforms</li>
+  <li>Call <code>lua_engine_poll()</code> — drains clock beat events and fires Lua callbacks</li>
+  <li>Sleep 1 ms — yields the CPU rather than busy-spinning</li>
+</ol>
+
+<p>
+  This loop is the main thread's entire runtime job. All the actual audio work happens on
+  SDL's audio thread. The main thread only wakes up to handle external events (beats, quit)
+  and to call back into Lua.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="lua-state">Creating the Lua State</h2>
+
+<p>
+  The Lua interpreter lives in a <code>lua_State*</code> — an opaque struct that holds
+  everything: the bytecode VM, the garbage collector, the global table, the call stack,
+  and all loaded libraries. You create one with <code>luaL_newstate()</code> and destroy it
+  with <code>lua_close()</code>.
+</p>
+
+<pre><span class="c">/* From lua_engine.c */</span>
+engine-&gt;L = <span class="fn">luaL_newstate</span>();    <span class="c">/* create the interpreter */</span>
+<span class="fn">luaL_openlibs</span>(engine-&gt;L);        <span class="c">/* load print, math, string, table, … */</span></pre>
+
+<p>
+  After <code>luaL_openlibs()</code>, the Lua environment has all standard library functions
+  available. Then we call our own registration functions to add the LuaSynth-specific globals:
+</p>
+
+<pre><span class="fn">lua_osc_register</span>(engine-&gt;L);      <span class="c">/* installs global "Osc" table */</span>
+<span class="fn">lua_filter_register</span>(engine-&gt;L);   <span class="c">/* installs global "Filter" table */</span>
+<span class="fn">lua_clock_register</span>(engine-&gt;L);    <span class="c">/* installs global "Clock" table */</span>
+<span class="c">/* … and so on for every module type */</span></pre>
+
+<p>
+  Once all the registration calls complete, the Lua script runs in an environment where
+  <code>Osc.new()</code>, <code>Filter.new()</code>, <code>Output.set()</code>, etc. are
+  all available as ordinary Lua global variables containing tables with callable functions.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="cfunctions">Registering C Functions</h2>
+
+<p>
+  Every function the Lua script can call is a C function with this exact signature:
+</p>
+
+<pre><span class="kw">typedef int</span> (*<span class="type">lua_CFunction</span>)(<span class="type">lua_State</span> *L);</pre>
+
+<p>
+  The integer return value is the number of return values left on the Lua stack. Arguments
+  come in from the script on the Lua stack; return values go back out on the stack.
+  The stack is 1-indexed from the bottom; negative indices count from the top.
+</p>
+
+<h3>The Lua stack</h3>
+
+<p>
+  The Lua C API is entirely stack-based. When Lua calls your C function, it has already
+  pushed all the arguments. You read them with <code>lua_toXXX()</code> / <code>luaL_checkXXX()</code>,
+  do your work, push return values, and return the count:
+</p>
+
+<pre><span class="c">/* A simple C function that adds two numbers */</span>
+<span class="kw">static int</span> <span class="fn">c_add</span>(<span class="type">lua_State</span> *L) {
+    <span class="kw">double</span> a = <span class="fn">luaL_checknumber</span>(L, 1);  <span class="c">/* arg 1 from Lua */</span>
+    <span class="kw">double</span> b = <span class="fn">luaL_checknumber</span>(L, 2);  <span class="c">/* arg 2 from Lua */</span>
+    <span class="fn">lua_pushnumber</span>(L, a + b);            <span class="c">/* push result */</span>
+    <span class="kw">return</span> 1;                             <span class="c">/* 1 return value */</span>
+}
+
+<span class="c">/* Register it as a global in Lua */</span>
+<span class="fn">lua_pushcfunction</span>(L, c_add);
+<span class="fn">lua_setglobal</span>(L, <span class="str">"add"</span>);
+<span class="c">/* Now Lua can call: local result = add(3, 4) */</span></pre>
+
+<p>
+  The <code>luaL_checkXXX</code> functions raise a Lua error (via <code>longjmp</code>) if
+  the argument has the wrong type. This is intentional: it gives Lua scripts a clean error
+  message rather than a C crash.
+</p>
+
+<h3>Registering a library table</h3>
+
+<p>
+  Rather than registering lots of individual globals, LuaSynth groups functions into tables.
+  <code>luaL_newlib()</code> creates a table and populates it from a
+  <code>luaL_Reg[]</code> array:
+</p>
+
+<pre><span class="kw">static const</span> <span class="type">luaL_Reg</span> osc_lib[] = {
+    {<span class="str">"new"</span>, lua_osc_new},
+    {<span class="type">NULL</span>, <span class="type">NULL</span>}            <span class="c">/* sentinel */</span>
+};
+<span class="fn">luaL_newlib</span>(L, osc_lib);   <span class="c">/* creates table {new = lua_osc_new} */</span>
+<span class="fn">lua_setglobal</span>(L, <span class="str">"Osc"</span>);  <span class="c">/* Lua: Osc = { new = &lt;C function&gt; } */</span>
+<span class="c">/* Now Lua can call: local o = Osc.new("sine", 440) */</span></pre>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="userdata">Full Userdata Pattern</h2>
+
+<p>
+  This is the core technique of LuaSynth's Lua/C integration, and the most important thing
+  to understand. We need Lua scripts to hold references to C objects (oscillators, filters,
+  etc.) and call methods on them. Lua's mechanism for this is <strong>full userdata</strong>.
+</p>
+
+<h3>What is full userdata?</h3>
+
+<p>
+  A "full userdata" is a Lua-managed block of raw memory of a specified size. Lua allocates
+  it on its heap, the garbage collector tracks it, and you can attach a metatable to it
+  (giving it methods). From the C side it looks like a <code>void*</code>.
+</p>
+
+<p>
+  We use full userdata to hold a <em>pointer</em> to our C module structs — not the struct
+  itself. This is the crucial detail: we allocate a block of exactly <code>sizeof(Module*)</code>
+  bytes inside Lua's heap, then write our <code>Module*</code> pointer into it.
+</p>
+
+<pre><span class="c">/* lua_osc_new — Osc.new("sine", 440) in Lua calls this C function */</span>
+<span class="kw">static int</span> <span class="fn">lua_osc_new</span>(<span class="type">lua_State</span> *L) {
+    <span class="kw">const char</span> *wave_str = <span class="fn">luaL_optstring</span>(L, 1, <span class="str">"sine"</span>);
+    <span class="kw">double</span> freq          = <span class="fn">luaL_optnumber</span>(L, 2, 440.0);
+
+    <span class="c">/* 1. Allocate the C module struct */</span>
+    <span class="type">Module</span> *mod = <span class="fn">osc_create</span>(<span class="fn">osc_waveform_from_string</span>(wave_str), freq);
+
+    <span class="c">/* 2. Allocate a pointer-sized block in Lua's heap,
+     *    write our Module* into it */</span>
+    <span class="type">Module</span> **ud = (<span class="type">Module</span> **)<span class="fn">lua_newuserdata</span>(L, <span class="kw">sizeof</span>(<span class="type">Module</span> *));
+    *ud = mod;
+
+    <span class="c">/* 3. Attach the metatable — this gives the userdata its methods */</span>
+    <span class="fn">luaL_getmetatable</span>(L, <span class="str">"LuaSynth.Osc"</span>);
+    <span class="fn">lua_setmetatable</span>(L, -2);
+
+    <span class="kw">return</span> 1;  <span class="c">/* return the userdata to Lua */</span>
+}</pre>
+
+<p>
+  To retrieve the <code>Module*</code> inside any method function:
+</p>
+
+<pre><span class="kw">static</span> <span class="type">Module</span> *<span class="fn">osc_check</span>(<span class="type">lua_State</span> *L, <span class="kw">int</span> idx) {
+    <span class="c">/* luaL_checkudata verifies the metatable matches "LuaSynth.Osc".
+     * If not, it raises a Lua error with a helpful message. */</span>
+    <span class="type">Module</span> **ud = (<span class="type">Module</span> **)<span class="fn">luaL_checkudata</span>(L, idx, <span class="str">"LuaSynth.Osc"</span>);
+    <span class="kw">return</span> *ud;  <span class="c">/* dereference the pointer */</span>
+}</pre>
+
+<h3>Why pointer-to-pointer?</h3>
+
+<p>
+  Because the C module struct is owned by the signal graph (not by Lua). We want Lua to hold
+  a reference to something, but the <em>lifetime</em> of the actual struct is managed by
+  <code>signal_graph_destroy()</code>, not by Lua's garbage collector. Storing a pointer in
+  Lua's userdata block neatly separates these two lifetimes.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="metatables">Metatables &amp; OOP in Lua</h2>
+
+<p>
+  A metatable is a regular Lua table that controls the behaviour of another table or
+  userdata — it provides operator overloading, method dispatch, and lifecycle hooks
+  (the <code>__gc</code> destructor). This is how Lua achieves object-oriented programming
+  without built-in class syntax.
+</p>
+
+<h3>Setting up the metatable</h3>
+
+<pre><span class="fn">luaL_newmetatable</span>(L, <span class="str">"LuaSynth.Osc"</span>);  <span class="c">/* create and register the metatable */</span>
+
+<span class="c">/* __index = metatable (the OOP trick)
+ * When Lua does osc:setFrequency(), it looks for "setFrequency" in the
+ * metatable's __index. Setting __index = metatable itself means method
+ * lookups search the metatable. */</span>
+<span class="fn">lua_pushvalue</span>(L, -1);                   <span class="c">/* push copy of metatable */</span>
+<span class="fn">lua_setfield</span>(L, -2, <span class="str">"__index"</span>);        <span class="c">/* metatable.__index = metatable */</span>
+
+<span class="c">/* Register all methods into the metatable */</span>
+<span class="kw">static const</span> <span class="type">luaL_Reg</span> methods[] = {
+    {<span class="str">"setFrequency"</span>,  lua_osc_set_frequency},
+    {<span class="str">"setAmplitude"</span>,  lua_osc_set_amplitude},
+    {<span class="str">"setWaveform"</span>,   lua_osc_set_waveform},
+    {<span class="str">"connect"</span>,       lua_osc_connect},
+    {<span class="str">"connectMod"</span>,    lua_osc_connect_mod},
+    {<span class="str">"__gc"</span>,          lua_osc_gc},         <span class="c">/* destructor */</span>
+    {<span class="str">"__tostring"</span>,    lua_osc_tostring},   <span class="c">/* print(osc) */</span>
+    {<span class="type">NULL</span>, <span class="type">NULL</span>}
+};
+<span class="fn">luaL_setfuncs</span>(L, methods, 0);</pre>
+
+<h3>How method calls work</h3>
+
+<p>
+  When Lua executes <code>osc:setFrequency(440)</code>, it is syntactic sugar for
+  <code>osc.setFrequency(osc, 440)</code>. Lua looks up <code>setFrequency</code> on the
+  userdata, finds nothing there, then consults <code>__index</code> — which is the metatable
+  — and finds the C function. It calls the C function with <code>osc</code> as argument 1
+  and <code>440</code> as argument 2.
+</p>
+
+<h3>The __gc destructor</h3>
+
+<p>
+  When Lua's garbage collector decides the userdata is unreachable, it calls the
+  <code>__gc</code> metamethod. LuaSynth uses this to free modules that were never added
+  to the signal graph. If a module <em>was</em> added to the graph
+  (<code>mod-&gt;in_graph == 1</code>), the graph owns it and we leave it alone:
+</p>
+
+<pre><span class="kw">static int</span> <span class="fn">lua_osc_gc</span>(<span class="type">lua_State</span> *L) {
+    <span class="type">Module</span> **ud = (<span class="type">Module</span> **)<span class="fn">lua_touserdata</span>(L, 1);
+    <span class="kw">if</span> (ud &amp;&amp; *ud &amp;&amp; !(*ud)-&gt;in_graph) {
+        <span class="fn">module_free</span>(*ud);   <span class="c">/* only free if graph doesn't own it */</span>
+        *ud = <span class="type">NULL</span>;
+    }
+    <span class="kw">return</span> 0;
+}</pre>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="registry">The Lua Registry</h2>
+
+<p>
+  The Lua registry is a special table, accessible from C but invisible to Lua scripts,
+  that lives at pseudo-index <code>LUA_REGISTRYINDEX</code>. It is the standard place to
+  store C-side data that needs to survive across multiple API calls without being a global
+  variable.
+</p>
+
+<h3>Storing the engine pointer</h3>
+
+<p>
+  Every binding function (e.g., <code>lua_osc_set_frequency</code>) needs access to the
+  <code>AudioEngine</code> so it can call <code>audio_engine_lock()</code>. We could use a
+  global C variable, but that prevents multiple Lua states from coexisting. Instead we store
+  the <code>LuaEngine*</code> pointer in the registry, keyed by a static variable's address
+  (which is globally unique without being mutable):
+</p>
+
+<pre><span class="c">/* A static variable whose ADDRESS is the key — value doesn't matter */</span>
+<span class="kw">static char</span> engine_registry_key;
+
+<span class="c">/* Store it (called once during init) */</span>
+<span class="fn">lua_pushlightuserdata</span>(L, &amp;engine_registry_key);  <span class="c">/* key   */</span>
+<span class="fn">lua_pushlightuserdata</span>(L, engine);                 <span class="c">/* value */</span>
+<span class="fn">lua_settable</span>(L, <span class="type">LUA_REGISTRYINDEX</span>);
+
+<span class="c">/* Retrieve it (called from every binding function that needs it) */</span>
+<span class="type">LuaEngine</span> *<span class="fn">lua_engine_get</span>(<span class="type">lua_State</span> *L) {
+    <span class="fn">lua_pushlightuserdata</span>(L, &amp;engine_registry_key);
+    <span class="fn">lua_gettable</span>(L, <span class="type">LUA_REGISTRYINDEX</span>);
+    <span class="type">LuaEngine</span> *engine = (<span class="type">LuaEngine</span> *)<span class="fn">lua_touserdata</span>(L, -1);
+    <span class="fn">lua_pop</span>(L, 1);
+    <span class="kw">return</span> engine;
+}</pre>
+
+<p>
+  This pattern — <em>use a static variable's address as a unique key</em> — is idiomatic
+  embedded-Lua style. It costs nothing at runtime and cannot collide with any other key.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="callbacks">Storing Lua Callbacks in C</h2>
+
+<p>
+  When a Lua script calls <code>clk:onBeat(function(beat) ... end)</code>, it is passing a
+  Lua function to C. C needs to hold onto that function reference so it can call it later
+  (from <code>lua_engine_poll()</code>). The standard mechanism is <code>luaL_ref()</code>.
+</p>
+
+<pre><span class="c">/* clk:onBeat(fn) — store the Lua function for later */</span>
+<span class="kw">static int</span> <span class="fn">lua_clock_on_beat</span>(<span class="type">lua_State</span> *L) {
+    <span class="fn">clock_check</span>(L, 1);                            <span class="c">/* validate 1st arg = clock */</span>
+    <span class="fn">luaL_checktype</span>(L, 2, <span class="type">LUA_TFUNCTION</span>);          <span class="c">/* validate 2nd arg = function */</span>
+
+    <span class="type">LuaEngine</span> *eng = <span class="fn">lua_engine_get</span>(L);
+
+    <span class="c">/* luaL_ref pops the value at stack top and stores it in the registry,
+     * returning an integer key we can use to retrieve it later. */</span>
+    <span class="fn">lua_pushvalue</span>(L, 2);                           <span class="c">/* copy fn to stack top */</span>
+    eng-&gt;beat_callback_ref = <span class="fn">luaL_ref</span>(L, <span class="type">LUA_REGISTRYINDEX</span>);
+
+    <span class="kw">return</span> 0;
+}
+
+<span class="c">/* Later, in lua_engine_poll(), to call it: */</span>
+<span class="fn">lua_rawgeti</span>(L, <span class="type">LUA_REGISTRYINDEX</span>, eng-&gt;beat_callback_ref);  <span class="c">/* push fn */</span>
+<span class="fn">lua_pushinteger</span>(L, beat_number);                               <span class="c">/* push arg */</span>
+<span class="fn">lua_pcall</span>(L, 1, 0, 0);                                         <span class="c">/* call fn(beat) */</span></pre>
+
+<p>
+  <code>lua_pcall</code> is the <em>protected call</em>. Unlike <code>lua_call</code>, it
+  catches Lua errors (syntax errors, runtime exceptions, explicit <code>error()</code> calls)
+  and returns an error code rather than crashing your C application. Always use
+  <code>lua_pcall</code> when calling back into Lua from a C event loop.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="threads">The Two-Thread Model</h2>
+
+<p>
+  LuaSynth has exactly two threads. Understanding what each thread owns and what it is
+  allowed to do is the foundation of the thread-safety strategy.
+</p>
+
+<div class="threads">
+  <div class="thread-box thread-main">
+    <div class="thread-name">Main Thread</div>
+    <ul>
+      <li>Runs the Lua interpreter</li>
+      <li>Executes the patch script</li>
+      <li>Polls SDL events</li>
+      <li>Drains the ring buffer</li>
+      <li>Calls Lua beat callbacks</li>
+      <li>Sets module parameters</li>
+    </ul>
+  </div>
+  <div class="thread-middle">
+    <div class="sync-badge">SDL_Lock<br>AudioDevice</div>
+    <div class="sync-badge">_Atomic<br>flags</div>
+    <div class="sync-badge">SPSC<br>RingBuffer</div>
+  </div>
+  <div class="thread-box thread-audio">
+    <div class="thread-name">SDL Audio Thread</div>
+    <ul>
+      <li>Runs every ~11.6 ms</li>
+      <li>Calls signal graph process()</li>
+      <li>Reads module parameters</li>
+      <li>Runs oscillators, filters, LFOs</li>
+      <li>Pushes clock beats to ring buffer</li>
+      <li>Never allocates memory</li>
+    </ul>
+  </div>
+</div>
+
+<p>
+  The three synchronisation mechanisms in the middle are the only ways these two threads
+  communicate. There is no shared mutable state outside of these controlled channels.
+</p>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="locks">Locks and Atomics</h2>
+
+<h3>SDL_LockAudioDevice — for parameter writes</h3>
+
+<p>
+  When a Lua script calls <code>osc:setFrequency(880)</code>, the binding function does this:
+</p>
+
+<pre><span class="kw">static int</span> <span class="fn">lua_osc_set_frequency</span>(<span class="type">lua_State</span> *L) {
+    <span class="type">Module</span>    *mod  = <span class="fn">osc_check</span>(L, 1);
+    <span class="kw">double</span>     freq = <span class="fn">luaL_checknumber</span>(L, 2);
+    <span class="type">LuaEngine</span> *eng  = <span class="fn">lua_engine_get</span>(L);
+
+    <span class="fn">audio_engine_lock</span>(eng-&gt;audio);   <span class="c">/* waits for callback to finish, then pauses it */</span>
+    <span class="fn">osc_set_frequency</span>(mod, freq);     <span class="c">/* safe to write now */</span>
+    <span class="fn">audio_engine_unlock</span>(eng-&gt;audio); <span class="c">/* lets callback resume */</span>
+    <span class="kw">return</span> 0;
+}</pre>
+
+<p>
+  This is slightly heavy — we pause audio for microseconds — but it is simple, correct, and
+  the pause is inaudible because it only happens when the script explicitly changes a parameter
+  (not continuously on every sample).
+</p>
+
+<h3>C11 _Atomic — for flags</h3>
+
+<p>
+  For single-word boolean flags like "should the envelope trigger?" or "is the clock running?",
+  a full SDL lock would be overkill. C11's <code>_Atomic int</code> provides atomic
+  load/store with memory-order guarantees, at essentially zero cost:
+</p>
+
+<pre><span class="c">/* envelope.h — trigger flag */</span>
+<span class="kw">typedef struct</span> {
+    _<span class="type">Atomic int</span> triggered;   <span class="c">/* main thread writes; audio thread reads */</span>
+    <span class="c">/* … */</span>
+} <span class="type">EnvelopeData</span>;
+
+<span class="c">/* Main thread (Lua binding): */</span>
+<span class="fn">atomic_store</span>(&amp;d-&gt;triggered, 1);    <span class="c">/* no lock needed */</span>
+
+<span class="c">/* Audio thread (envelope process()): */</span>
+<span class="kw">if</span> (<span class="fn">atomic_load</span>(&amp;d-&gt;triggered)) {
+    d-&gt;phase = <span class="type">ENV_ATTACK</span>;
+    <span class="fn">atomic_store</span>(&amp;d-&gt;triggered, 0);
+}</pre>
+
+<div class="tip">
+  <div class="label">Rule of thumb</div>
+  Use <code>SDL_LockAudioDevice</code> for multi-byte parameter changes (floats, structs).
+  Use <code>_Atomic</code> for single-word flags and counters that only need to be written
+  or read atomically, not in combination with anything else.
+</div>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="ringbuffer">The Ring Buffer</h2>
+
+<p>
+  The clock module needs to fire a Lua callback on every beat — but Lua must only be called
+  from the main thread. The audio thread cannot call Lua directly. The solution is a
+  <strong>Single-Producer Single-Consumer (SPSC) ring buffer</strong>: the audio thread
+  writes beat events, the main thread reads them.
+</p>
+
+<div class="diagram-wrap">
+  <div class="diagram"><span style="color:var(--accent3)">Audio Thread (producer)</span>                        <span style="color:var(--accent)">Main Thread (consumer)</span>
+
+clock fires a beat                              lua_engine_poll() loops
+        │                                               │
+        ▼                                               ▼
+ <span style="color:var(--accent3)">ringbuf_push(&amp;ring, beat_event)</span>      <span style="color:var(--accent)">while (ringbuf_pop(&amp;ring, &amp;ev)) {</span>
+        │                                   <span style="color:var(--accent)">    lua_pcall(L, beat_fn, beat);</span>
+        │                                   <span style="color:var(--accent)">}</span>
+        ▼
+ ┌────┬────┬────┬────┬────┬────┬────┬────┐
+ │ ev │ ev │    │    │    │    │    │    │
+ └────┴────┴────┴────┴────┴────┴────┴────┘
+        ▲write_pos                ▲read_pos
+        (audio thread owns)       (main thread owns)</div>
+</div>
+
+<p>
+  The ring buffer is lock-free because each thread only writes <em>its own</em> index:
+  the audio thread advances <code>write_pos</code>, the main thread advances
+  <code>read_pos</code>. C11 <code>atomic_store</code>/<code>atomic_load</code> with
+  acquire/release ordering ensures each thread sees the other's updates correctly
+  without any mutex.
+</p>
+
+<pre><span class="c">/* Producer (audio thread) — from ringbuffer.c */</span>
+<span class="kw">int</span> <span class="fn">ringbuf_push</span>(<span class="type">RingBuffer</span> *rb, <span class="type">RingEvent</span> event) {
+    <span class="kw">int</span> w = <span class="fn">atomic_load_explicit</span>(&amp;rb-&gt;write_pos, memory_order_relaxed);
+    <span class="kw">int</span> r = <span class="fn">atomic_load_explicit</span>(&amp;rb-&gt;read_pos,  memory_order_acquire);
+    <span class="kw">if</span> ((w - r) &gt;= <span class="type">RINGBUF_CAPACITY</span>) <span class="kw">return</span> 0;  <span class="c">/* full — drop */</span>
+    rb-&gt;slots[w % <span class="type">RINGBUF_CAPACITY</span>] = event;
+    <span class="fn">atomic_store_explicit</span>(&amp;rb-&gt;write_pos, w + 1, memory_order_release);
+    <span class="kw">return</span> 1;
+}
+
+<span class="c">/* Consumer (main thread) */</span>
+<span class="kw">int</span> <span class="fn">ringbuf_pop</span>(<span class="type">RingBuffer</span> *rb, <span class="type">RingEvent</span> *event) {
+    <span class="kw">int</span> r = <span class="fn">atomic_load_explicit</span>(&amp;rb-&gt;read_pos,  memory_order_relaxed);
+    <span class="kw">int</span> w = <span class="fn">atomic_load_explicit</span>(&amp;rb-&gt;write_pos, memory_order_acquire);
+    <span class="kw">if</span> (r == w) <span class="kw">return</span> 0;  <span class="c">/* empty */</span>
+    *event = rb-&gt;slots[r % <span class="type">RINGBUF_CAPACITY</span>];
+    <span class="fn">atomic_store_explicit</span>(&amp;rb-&gt;read_pos, r + 1, memory_order_release);
+    <span class="kw">return</span> 1;
+}</pre>
+
+<div class="callout">
+  <div class="label">Memory ordering</div>
+  <code>memory_order_release</code> on the write ensures all writes to the slot complete
+  before the index update is visible. <code>memory_order_acquire</code> on the read ensures
+  the consumer sees the slot's data after it sees the updated index. Together they form the
+  classic acquire/release handshake that makes this pattern safe without a mutex.
+</div>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="walkthrough-01">Walkthrough: Example 01 — Sine Tone</h2>
+
+<p>
+  Let us trace every step that happens when you run the simplest example:
+  <span class="file-ref">scripts/examples/01_sine_tone.lua</span>.
+</p>
+
+<pre><span class="c">-- 01_sine_tone.lua</span>
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440.0</span>)
+<span class="fn">Output.set</span>(osc)</pre>
+
+<p>
+  Here is the full execution trace:
+</p>
+
+<ol class="steps">
+  <li>
+    <strong>Lua evaluates <code>Osc.new("sine", 440.0)</code>.</strong>
+    Lua looks up the global <code>Osc</code> table (installed by
+    <code>lua_osc_register()</code>), finds <code>new</code>, and calls
+    the C function <code>lua_osc_new()</code> with two arguments on the stack.
+  </li>
+  <li>
+    <strong>C allocates the oscillator.</strong>
+    <code>osc_create(OSC_SINE, 440.0)</code> allocates a <code>Module</code> struct and
+    an <code>OscData</code> struct. Sets <code>mod-&gt;process = osc_process</code>.
+    Registers it with the signal graph (<code>signal_graph_add()</code>), which sets
+    <code>mod-&gt;in_graph = 1</code>.
+  </li>
+  <li>
+    <strong>C creates a Lua userdata.</strong>
+    <code>lua_newuserdata(L, sizeof(Module*))</code> allocates 8 bytes (pointer size) on
+    Lua's heap. The <code>Module*</code> is written into it. The <code>"LuaSynth.Osc"</code>
+    metatable is attached. The userdata is returned to Lua and assigned to <code>osc</code>.
+  </li>
+  <li>
+    <strong>Lua evaluates <code>Output.set(osc)</code>.</strong>
+    The C function <code>lua_output_set()</code> retrieves the <code>Module*</code> from
+    the userdata and calls <code>signal_graph_set_output(graph, mod)</code>. The graph now
+    has an output module.
+  </li>
+  <li>
+    <strong>The Lua script returns.</strong>
+    <code>main.c</code> enters the event loop. The SDL audio thread is already running.
+  </li>
+  <li>
+    <strong>SDL calls <code>sdl_audio_callback()</code> every ~11.6 ms.</strong>
+    The callback calls <code>signal_graph_process()</code>, which calls
+    <code>output_module-&gt;process()</code>. The output module is the oscillator.
+    <code>osc_process()</code> runs: for each of the 512 frames, it advances the phase
+    accumulator by <code>440/44100</code>, computes <code>sin(phase * 2π)</code>, and
+    writes the result into the SDL buffer. The hardware plays a 440 Hz sine tone.
+  </li>
+</ol>
+
+<div class="tip">
+  <div class="label">The phase accumulator</div>
+  The oscillator's frequency is implemented by a phase variable <code>phase ∈ [0, 1)</code>
+  that advances by <code>frequency / sample_rate</code> each sample. When <code>phase</code>
+  reaches 1.0, it wraps back to 0. One full cycle = one complete value range of the waveform.
+  For sine: <code>sin(phase * 2π)</code>. For saw: <code>2*phase - 1</code>.
+</div>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="walkthrough-04">Walkthrough: Example 04 — Clock &amp; Envelopes</h2>
+
+<p>
+  <span class="file-ref">scripts/examples/04_envelope_pluck.lua</span> demonstrates the
+  full cross-thread event path. It is the most architecturally instructive example.
+</p>
+
+<pre><span class="c">-- 04_envelope_pluck.lua (abbreviated)</span>
+<span class="kw">local</span> notes = { <span class="num">57</span>, <span class="num">60</span>, <span class="num">62</span>, <span class="num">63</span>, <span class="num">67</span>, <span class="num">69</span>, <span class="num">67</span>, <span class="num">63</span>, <span class="num">62</span>, <span class="num">60</span> }
+<span class="kw">local</span> beat_index = <span class="num">1</span>
+
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"square"</span>, <span class="fn">midi_to_freq</span>(notes[<span class="num">1</span>]))
+<span class="kw">local</span> env = <span class="fn">Envelope.new</span>(<span class="num">0.005</span>, <span class="num">0.08</span>, <span class="num">0.2</span>, <span class="num">0.15</span>)
+env:setInput(osc)
+
+<span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"svf"</span>)
+flt:setInput(env)
+<span class="fn">Output.set</span>(flt)
+
+<span class="kw">local</span> clk = <span class="fn">Clock.new</span>(<span class="num">160</span>)
+clk:onBeat(<span class="kw">function</span>(beat)
+    <span class="kw">local</span> note = notes[beat_index]
+    beat_index = (beat_index % #notes) + <span class="num">1</span>
+    osc:setFrequency(<span class="fn">midi_to_freq</span>(note))
+    env:trigger()
+<span class="kw">end</span>)
+clk:start()</pre>
+
+<p>
+  Here is what happens at each beat, tracing through all four layers:
+</p>
+
+<ol class="steps">
+  <li>
+    <strong>Audio thread: clock fires.</strong>
+    Inside <code>clock_process()</code>, the clock's phase accumulator advances each sample.
+    When it completes a full beat cycle at 160 BPM, it calls
+    <code>ringbuf_push(&amp;ring, beat_event)</code> with the beat number. This is the only
+    thing the clock does — it writes one event to the ring buffer and goes back to
+    accumulating. No Lua is touched.
+  </li>
+  <li>
+    <strong>Main thread: <code>lua_engine_poll()</code> drains the ring buffer.</strong>
+    On the next iteration of the <code>while(running)</code> loop (≤1 ms later),
+    <code>ringbuf_pop()</code> returns the beat event. The engine retrieves the stored
+    callback reference from the Lua registry and calls <code>lua_pcall()</code>.
+  </li>
+  <li>
+    <strong>Lua callback runs on the main thread.</strong>
+    The anonymous function advances <code>beat_index</code>, calls
+    <code>osc:setFrequency()</code> (which acquires the SDL lock, writes the new
+    frequency, releases the lock), then calls <code>env:trigger()</code> (which does
+    an <code>atomic_store</code> to set the trigger flag).
+  </li>
+  <li>
+    <strong>Audio thread: envelope responds.</strong>
+    On the very next audio callback invocation, <code>envelope_process()</code> sees
+    the trigger flag set, resets to the attack phase, and begins the ADSR curve.
+    The output is a short plucked note at the new pitch.
+  </li>
+</ol>
+
+<div class="callout">
+  <div class="label">Key insight</div>
+  The beat callback runs on the <em>main thread</em>, never on the audio thread. This is
+  why it is safe to call Lua from the callback — Lua is not thread-safe and must only ever
+  be used from one thread. The ring buffer is the bridge that makes this possible without
+  introducing any mutex between the audio thread and Lua.
+</div>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="adding-module">How to Add a New Module</h2>
+
+<p>
+  To add, say, a <strong>bitcrusher</strong> distortion module, you would follow this
+  recipe. Every existing module in LuaSynth follows exactly the same pattern, so you can
+  use <span class="file-ref">src/modules/osc.c</span> and
+  <span class="file-ref">src/lua_bindings/lua_osc.c</span> as templates.
+</p>
+
+<h3>Step 1: Define the data struct and C API</h3>
+
+<p>
+  Create <code>src/modules/bitcrusher.h</code> and <code>src/modules/bitcrusher.c</code>.
+  The <code>.h</code> declares your data struct and the public functions. The <code>.c</code>
+  implements <code>process()</code>, <code>destroy()</code>, and the factory function:
+</p>
+
+<pre><span class="c">/* bitcrusher.h */</span>
+<span class="kw">typedef struct</span> {
+    <span class="kw">float</span>  bits;      <span class="c">/* bit depth, e.g. 8.0 */</span>
+    <span class="kw">float</span>  rate;      <span class="c">/* sample-rate reduction factor */</span>
+    <span class="kw">float</span>  last;      <span class="c">/* last held sample (for rate reduction) */</span>
+    <span class="kw">int</span>    counter;
+} <span class="type">BitcrusherData</span>;
+
+<span class="type">Module</span> *<span class="fn">bitcrusher_create</span>(<span class="kw">float</span> bits, <span class="kw">float</span> rate);
+<span class="kw">void</span>    <span class="fn">bitcrusher_set_bits</span>(<span class="type">Module</span> *mod, <span class="kw">float</span> bits);</pre>
+
+<h3>Step 2: Implement process()</h3>
+
+<pre><span class="c">/* bitcrusher.c — the DSP logic */</span>
+<span class="kw">static int</span> <span class="fn">bitcrusher_process</span>(<span class="type">Module</span> *self, <span class="kw">float</span> *out, <span class="kw">int</span> frames, <span class="kw">int</span> rate) {
+    <span class="type">BitcrusherData</span> *d = (<span class="type">BitcrusherData</span> *)self-&gt;data;
+
+    <span class="c">/* Pull audio from upstream input */</span>
+    <span class="kw">if</span> (self-&gt;num_inputs &gt; 0) {
+        self-&gt;inputs[0]-&gt;process(self-&gt;inputs[0], self-&gt;scratch, frames, rate);
+    } <span class="kw">else</span> {
+        <span class="fn">memset</span>(self-&gt;scratch, 0, frames * 2 * <span class="kw">sizeof</span>(<span class="kw">float</span>));
+    }
+
+    <span class="kw">float</span> levels = <span class="fn">powf</span>(2.0f, d-&gt;bits);
+    <span class="kw">for</span> (<span class="kw">int</span> i = 0; i &lt; frames * 2; i++) {
+        <span class="c">/* Quantise: round to nearest 1/levels step */</span>
+        out[i] = <span class="fn">floorf</span>(self-&gt;scratch[i] * levels) / levels;
+    }
+    <span class="kw">return</span> 0;
+}</pre>
+
+<h3>Step 3: Write the Lua binding</h3>
+
+<p>
+  Create <code>src/lua_bindings/lua_bitcrusher.c</code>. Copy the structure from
+  <code>lua_osc.c</code>: <code>bitcrusher_check()</code>, <code>lua_bitcrusher_new()</code>,
+  setter functions with <code>audio_engine_lock/unlock</code>, <code>__gc</code>, and
+  <code>lua_bitcrusher_register()</code>.
+</p>
+
+<h3>Step 4: Register in lua_engine.c</h3>
+
+<pre><span class="c">/* lua_engine.c — add one line to lua_engine_init() */</span>
+<span class="fn">lua_bitcrusher_register</span>(engine-&gt;L);  <span class="c">/* installs global "Bitcrusher" */</span></pre>
+
+<h3>Step 5: Add to the Makefile</h3>
+
+<pre>SRCS += src/modules/bitcrusher.c src/lua_bindings/lua_bitcrusher.c</pre>
+
+<p>
+  That is the complete recipe. No other files need to change. The new module is available to
+  Lua scripts immediately:
+</p>
+
+<pre><span class="kw">local</span> crush = <span class="fn">Bitcrusher.new</span>(<span class="num">8.0</span>, <span class="num">1.0</span>)
+crush:setInput(osc)
+<span class="fn">Output.set</span>(crush)</pre>
+
+<hr class="divider">
+
+<!-- ──────────────────────────────────────────────────────────────────── -->
+<h2 id="key-lessons">Key Lessons</h2>
+
+<p>
+  Here is a summary of the embedded-Lua patterns that LuaSynth demonstrates, and when to
+  apply each one in your own projects:
+</p>
+
+<table>
+  <tr>
+    <th>Pattern</th>
+    <th>Where in LuaSynth</th>
+    <th>When to use it</th>
+  </tr>
+  <tr>
+    <td><strong>Full userdata + metatable</strong><br>
+      <code>lua_newuserdata</code> + <code>luaL_newmetatable</code></td>
+    <td>Every module binding<br><code>lua_osc.c</code>, etc.</td>
+    <td>When Lua needs to hold and call methods on a C object. The standard way to do OOP
+    across the Lua/C boundary.</td>
+  </tr>
+  <tr>
+    <td><strong>Pointer-to-pointer userdata</strong><br>
+      <code>Module **ud = lua_newuserdata(L, sizeof(Module*))</code></td>
+    <td>All module bindings</td>
+    <td>When the C object's lifetime is managed outside Lua (e.g., by a graph or pool).
+    Decouples Lua GC from C ownership.</td>
+  </tr>
+  <tr>
+    <td><strong>Registry key via static address</strong><br>
+      <code>static char key; lua_pushlightuserdata(L, &amp;key)</code></td>
+    <td><code>lua_engine.c</code></td>
+    <td>When C code needs a unique, stable key for registry storage without a global
+    variable. Supports multiple <code>lua_State</code> instances cleanly.</td>
+  </tr>
+  <tr>
+    <td><strong>luaL_ref for callbacks</strong><br>
+      <code>eng->ref = luaL_ref(L, LUA_REGISTRYINDEX)</code></td>
+    <td><code>lua_clock.c</code></td>
+    <td>Whenever a C function needs to store a Lua function for later invocation. Works
+    for any Lua value, not just functions.</td>
+  </tr>
+  <tr>
+    <td><strong>lua_pcall not lua_call</strong></td>
+    <td><code>lua_engine_poll()</code></td>
+    <td>Always use when calling Lua from a C event loop. Catches errors without crashing
+    your application.</td>
+  </tr>
+  <tr>
+    <td><strong>SDL_LockAudioDevice for params</strong></td>
+    <td>Every parameter setter</td>
+    <td>When writing multi-byte values that the audio callback reads. Simplest correct
+    synchronisation; cost is negligible for infrequent updates.</td>
+  </tr>
+  <tr>
+    <td><strong>_Atomic for flags</strong></td>
+    <td><code>envelope.c</code>, <code>clock.c</code></td>
+    <td>Single-word booleans and counters written from one thread and read from another.
+    Zero overhead, no blocking.</td>
+  </tr>
+  <tr>
+    <td><strong>SPSC ring buffer for events</strong></td>
+    <td><code>ringbuffer.c</code>, <code>clock.c</code></td>
+    <td>When a realtime thread (audio callback) needs to signal a non-realtime thread
+    (main/Lua) without blocking. Generalises to any producer-consumer event stream.</td>
+  </tr>
+  <tr>
+    <td><strong>Pull-model DAG</strong></td>
+    <td><code>signal_graph.c</code>, all modules</td>
+    <td>Audio processing graphs where you want minimal latency and natural handling of
+    fan-in (multiple inputs summed at a node). Each node computes only when asked.</td>
+  </tr>
+  <tr>
+    <td><strong>Pre-allocated scratch buffer</strong></td>
+    <td><code>module.h</code>, <code>Module.scratch[]</code></td>
+    <td>Anywhere a realtime callback needs temporary storage. Avoids malloc inside the
+    callback, which would be undefined-latency and is audio death.</td>
+  </tr>
+</table>
+
+<hr class="divider">
+
+<h3>Further reading</h3>
+
+<ul>
+  <li><strong>Programming in Lua</strong> (PIL) — Roberto Ierusalimschy. The definitive
+    Lua reference; Part IV covers the C API in depth.</li>
+  <li><strong>Lua 5.4 Reference Manual</strong> — the canonical specification for
+    <code>luaL_ref</code>, metatables, the registry, and the full C API.</li>
+  <li><strong>The Audio Programmer</strong> blog — excellent writeups on real-time audio
+    constraints, lock-free data structures, and SDL2 audio.</li>
+  <li><strong>JUCE documentation on lock-free audio</strong> — the concepts transfer
+    directly to C; the ring buffer pattern shown here is industry standard.</li>
+</ul>
+
+<div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); color: #8b949e; font-size: 13px;">
+  <p>LuaSynth — a pedagogical modular synthesiser in pure C + Lua 5.4</p>
+  <p style="margin-top: 4px;"><a href="index.html">← API Reference</a></p>
+</div>
+
+</div><!-- .content -->
+</div><!-- .layout -->
+</body>
+</html>
