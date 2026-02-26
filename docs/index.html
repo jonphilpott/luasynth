@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LuaSynth — Modular Synthesiser in C + Lua</title>
+<style>
+  :root {
+    --bg:       #0d1117;
+    --bg2:      #161b22;
+    --bg3:      #21262d;
+    --border:   #30363d;
+    --text:     #c9d1d9;
+    --heading:  #e6edf3;
+    --accent:   #58a6ff;
+    --accent2:  #3fb950;
+    --accent3:  #d29922;
+    --code-bg:  #0d1117;
+    --tag-bg:   #1f3d5c;
+    --tag-text: #79c0ff;
+    --warn:     #f85149;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .layout { display: flex; min-height: 100vh; }
+  nav {
+    width: 260px;
+    min-width: 220px;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 24px 16px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  nav .logo {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--heading);
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  nav .logo span { color: var(--accent); }
+  nav ul { list-style: none; }
+  nav li { margin: 2px 0; }
+  nav a {
+    display: block;
+    padding: 5px 10px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+  }
+  nav a:hover { background: var(--bg3); color: var(--heading); text-decoration: none; }
+  nav .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #8b949e;
+    margin: 16px 0 4px 10px;
+  }
+
+  /* Content */
+  .content {
+    flex: 1;
+    max-width: 900px;
+    padding: 40px 48px;
+  }
+
+  h1 { font-size: 32px; color: var(--heading); margin-bottom: 12px; }
+  h2 { font-size: 22px; color: var(--heading); margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 17px; color: var(--heading); margin: 28px 0 10px; }
+  h4 { font-size: 14px; color: #8b949e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin: 20px 0 8px; }
+  p  { margin: 10px 0; }
+  ul, ol { margin: 10px 0 10px 24px; }
+  li { margin: 4px 0; }
+
+  /* Code */
+  code {
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    background: var(--bg3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: #e6edf3;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e6edf3;
+  }
+  pre .c  { color: #8b949e; }  /* comments */
+  pre .kw { color: #ff7b72; }  /* keywords */
+  pre .str { color: #a5d6ff; } /* strings */
+  pre .num { color: #79c0ff; } /* numbers */
+  pre .fn { color: #d2a8ff; }  /* function names */
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    background: var(--tag-bg);
+    color: var(--tag-text);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 8px;
+    border-radius: 10px;
+    margin-right: 4px;
+  }
+  .tag.green  { background: #0d3321; color: #3fb950; }
+  .tag.yellow { background: #2d2000; color: #d29922; }
+  .tag.red    { background: #3d0000; color: #f85149; }
+
+  /* Callout boxes */
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: #0f1e2e;
+    border-radius: 0 8px 8px 0;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .callout.warn { border-color: var(--accent3); background: #1f1600; }
+  .callout strong { color: var(--heading); }
+
+  /* API tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    background: var(--bg3);
+    color: #8b949e;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  .param { color: var(--accent); font-family: monospace; font-size: 13px; }
+  .type  { color: var(--accent2); font-family: monospace; font-size: 12px; }
+  .ret   { color: var(--accent3); font-family: monospace; font-size: 12px; }
+
+  /* Architecture diagram blocks */
+  .diagram {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 16px 0;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .diagram .box {
+    display: inline-block;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+  }
+  .diagram .box.green  { border-color: var(--accent2); color: var(--accent2); }
+  .diagram .box.yellow { border-color: var(--accent3); color: var(--accent3); }
+  .diagram .box.red    { border-color: var(--warn); color: var(--warn); }
+  .diagram .arrow { color: #8b949e; }
+  .diagram .label { color: #8b949e; font-size: 12px; }
+  .diagram .row   { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .diagram .indent { margin-left: 32px; }
+
+  /* Module sections */
+  .module-section {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 24px 0;
+  }
+  .module-section h3 { margin-top: 0; color: var(--accent); }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ================================================================== -->
+<!-- Sidebar Navigation                                                  -->
+<!-- ================================================================== -->
+<nav>
+  <div class="logo">Lua<span>Synth</span></div>
+  <ul>
+    <li><a href="#quickstart">Quick Start</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#files">File Layout</a></li>
+    <div class="section-label">Module Reference</div>
+    <li><a href="#mod-osc">Osc</a></li>
+    <li><a href="#mod-noise">Noise</a></li>
+    <li><a href="#mod-filter">Filter</a></li>
+    <li><a href="#mod-lfo">LFO</a></li>
+    <li><a href="#mod-envelope">Envelope</a></li>
+    <li><a href="#mod-delay">Delay</a></li>
+    <li><a href="#mod-clock">Clock</a></li>
+    <div class="section-label">Globals</div>
+    <li><a href="#output">Output</a></li>
+    <li><a href="#midi">midi_to_freq</a></li>
+    <li><a href="#sdl">SDL.delay</a></li>
+    <div class="section-label">Guides</div>
+    <li><a href="#composition">Composition Guide</a></li>
+    <li><a href="#build">Build Guide</a></li>
+  </ul>
+</nav>
+
+<!-- ================================================================== -->
+<!-- Main Content                                                         -->
+<!-- ================================================================== -->
+<main class="content">
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Header                                                               -->
+<!-- ------------------------------------------------------------------ -->
+<h1>LuaSynth</h1>
+<p>
+  A modular synthesiser built in <strong>pure C</strong> with <strong>Lua 5.4</strong> as the scripting engine.
+  The project is a learning exercise in two areas simultaneously:
+</p>
+<ul>
+  <li><strong>DSP fundamentals</strong> — oscillators, filters, envelopes, delay lines</li>
+  <li><strong>Embedding Lua in C</strong> — full userdata, metatables, callbacks, thread safety</li>
+</ul>
+<p>
+  Everything is deliberately simple and thoroughly commented. Read the C source alongside
+  the Lua examples to understand how scriptable applications are structured.
+</p>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Quick Start                                                          -->
+<!-- ------------------------------------------------------------------ -->
+<h2 id="quickstart">Quick Start</h2>
+
+<h4>macOS (Homebrew)</h4>
+<pre>brew install sdl2 lua
+git clone … &amp;&amp; cd luasynth
+make run-01          # plays 440 Hz sine tone</pre>
+
+<h4>Linux (apt)</h4>
+<pre>sudo apt install libsdl2-dev lua5.4 liblua5.4-dev
+make run-01</pre>
+
+<h4>The simplest patch</h4>
+<pre><span class="c">-- Play a 440 Hz sine tone</span>
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440.0</span>)
+<span class="fn">Output.set</span>(osc)</pre>
+
+<div class="callout">
+  <strong>Run any example:</strong> <code>./luasynth scripts/examples/01_sine_tone.lua</code>
+  — or use <code>make run-01</code> through <code>make run-06</code>.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Architecture                                                         -->
+<!-- ------------------------------------------------------------------ -->
+<h2 id="architecture">Architecture</h2>
+
+<p>Four interlocking layers:</p>
+
+<div class="diagram">
+  <div class="row">
+    <span class="box">Lua Script</span>
+    <span class="arrow">──→</span>
+    <span class="label">creates modules, sets parameters, calls Output.set()</span>
+  </div>
+  <div class="row indent">
+    <span class="arrow">↓  Lua C API (full userdata + metatables)</span>
+  </div>
+  <div class="row">
+    <span class="box green">Lua Binding Layer</span>
+    <span class="arrow">──→</span>
+    <span class="label">wraps C structs as Lua objects with methods</span>
+  </div>
+  <div class="row indent">
+    <span class="arrow">↓  SDL_LockAudioDevice / _Atomic for thread safety</span>
+  </div>
+  <div class="row">
+    <span class="box yellow">Signal Graph</span>
+    <span class="arrow">──→</span>
+    <span class="label">DAG of modules; output pulls from upstream recursively</span>
+  </div>
+  <div class="row indent">
+    <span class="arrow">↓  SDL audio callback (separate thread)</span>
+  </div>
+  <div class="row">
+    <span class="box red">SDL2 Audio Engine</span>
+    <span class="arrow">──→</span>
+    <span class="label">calls signal_graph_process() every ~11.6 ms</span>
+  </div>
+</div>
+
+<h3>Pull Model</h3>
+<p>
+  The audio callback asks the <em>output module</em> for samples. The output module asks
+  its upstream inputs, which ask their inputs, and so on — recursively through the DAG.
+  No explicit traversal order is needed; the recursion follows the graph edges.
+</p>
+<p>
+  Each module's <code>process(self, out_buf, num_frames, sample_rate)</code> function fills
+  a stereo interleaved float buffer. Pre-allocated <code>scratch</code> buffers on each
+  module avoid <code>malloc()</code> in the real-time audio thread.
+</p>
+
+<h3>Thread Safety</h3>
+<table>
+  <tr><th>Situation</th><th>Mechanism</th></tr>
+  <tr>
+    <td>Lua sets osc frequency / filter cutoff</td>
+    <td><code>SDL_LockAudioDevice</code> / <code>SDL_UnlockAudioDevice</code></td>
+  </tr>
+  <tr>
+    <td>Lua calls <code>env:trigger()</code></td>
+    <td><code>atomic_store(&amp;data-&gt;triggered, 1)</code> (C11 <code>_Atomic</code>)</td>
+  </tr>
+  <tr>
+    <td>Clock beat fires (audio thread) → call Lua</td>
+    <td>Push event to SPSC ring buffer; main loop calls Lua callback</td>
+  </tr>
+</table>
+
+<div class="callout warn">
+  <strong>Rule:</strong> The Lua VM must only be called from the main thread. Never call Lua from the SDL audio callback.
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- File Layout                                                          -->
+<!-- ------------------------------------------------------------------ -->
+<h2 id="files">File Layout</h2>
+<table>
+  <tr><th>Path</th><th>Purpose</th></tr>
+  <tr><td><code>src/main.c</code></td><td>CLI, SDL init, Lua init, event loop</td></tr>
+  <tr><td><code>src/audio_engine.c/.h</code></td><td>SDL2 device, callback, lock wrappers</td></tr>
+  <tr><td><code>src/signal_graph.c/.h</code></td><td>Module registry, pull-model traversal</td></tr>
+  <tr><td><code>src/module.h</code></td><td>Base Module struct + process() interface</td></tr>
+  <tr><td><code>src/modules/osc.c/.h</code></td><td>Oscillator (sine, square, saw, triangle)</td></tr>
+  <tr><td><code>src/modules/noise.c/.h</code></td><td>White noise source</td></tr>
+  <tr><td><code>src/modules/filter.c/.h</code></td><td>SVF + Moog ladder filter</td></tr>
+  <tr><td><code>src/modules/lfo.c/.h</code></td><td>Low-frequency oscillator (0.01–20 Hz)</td></tr>
+  <tr><td><code>src/modules/envelope.c/.h</code></td><td>ADSR envelope generator</td></tr>
+  <tr><td><code>src/modules/delay.c/.h</code></td><td>Circular buffer delay line</td></tr>
+  <tr><td><code>src/modules/clock.c/.h</code></td><td>BPM clock, beat detection</td></tr>
+  <tr><td><code>src/lua_bindings/lua_engine.c/.h</code></td><td>Lua state, library loader, ring-buffer event loop</td></tr>
+  <tr><td><code>src/lua_bindings/lua_osc.c/.h</code></td><td>Osc Lua binding (full userdata pattern)</td></tr>
+  <tr><td><code>src/lua_bindings/lua_filter.c/.h</code></td><td>Filter Lua binding</td></tr>
+  <tr><td><code>src/lua_bindings/lua_lfo.c/.h</code></td><td>LFO Lua binding</td></tr>
+  <tr><td><code>src/lua_bindings/lua_envelope.c/.h</code></td><td>Envelope Lua binding</td></tr>
+  <tr><td><code>src/lua_bindings/lua_delay.c/.h</code></td><td>Delay Lua binding</td></tr>
+  <tr><td><code>src/lua_bindings/lua_clock.c/.h</code></td><td>Clock Lua binding (onBeat callback pattern)</td></tr>
+  <tr><td><code>src/lua_bindings/lua_midi.c/.h</code></td><td><code>midi_to_freq()</code> global function</td></tr>
+  <tr><td><code>src/lua_bindings/lua_output.c/.h</code></td><td>Output.set() global</td></tr>
+  <tr><td><code>src/util/ringbuffer.c/.h</code></td><td>Lock-free SPSC ring buffer</td></tr>
+  <tr><td><code>src/util/math_util.h</code></td><td>clampf, lerpf, fast_tanhf</td></tr>
+  <tr><td><code>scripts/startup.lua</code></td><td>Default script</td></tr>
+  <tr><td><code>scripts/examples/01–06.lua</code></td><td>Phase examples</td></tr>
+</table>
+
+<hr>
+
+<!-- ================================================================== -->
+<!-- MODULE REFERENCE                                                     -->
+<!-- ================================================================== -->
+<h2 id="module-ref" style="border-bottom:2px solid var(--accent); color: var(--accent)">Module Reference</h2>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Osc                                                                  -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-osc">
+<h3>Osc — Oscillator</h3>
+<p>
+  Generates periodic audio waveforms using a <strong>phase accumulator</strong>.
+  Phase advances by <code>frequency / sample_rate</code> per sample and wraps at 1.0,
+  producing exactly <em>frequency</em> cycles per second regardless of sample rate.
+</p>
+<p>
+  Waveforms are naive (no PolyBLEP anti-aliasing) — aliasing occurs at higher
+  frequencies, which is intentional for this educational project.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">waveform</td><td class="type">string</td><td><code>"sine"</code> <code>"square"</code> <code>"saw"</code> <code>"triangle"</code></td><td>Waveform shape</td></tr>
+  <tr><td class="param">frequency</td><td class="type">number</td><td>0.1 – 20000 Hz</td><td>Initial frequency in Hz</td></tr>
+</table>
+<pre><span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440.0</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setFrequency(hz)</code></td><td><span class="param">hz</span> <span class="type">number</span> — Hz</td><td>nil</td><td>Set oscillator frequency. Thread-safe (SDL lock).</td></tr>
+  <tr><td><code>setAmplitude(amp)</code></td><td><span class="param">amp</span> <span class="type">number</span> — [0,1]</td><td>nil</td><td>Set output gain.</td></tr>
+  <tr><td><code>setWaveform(name)</code></td><td><span class="param">name</span> <span class="type">string</span></td><td>nil</td><td>Change waveform at runtime.</td></tr>
+  <tr><td><code>connect(src)</code></td><td><span class="param">src</span> <span class="type">module</span></td><td>nil</td><td>Add <code>src</code> as an audio input (additive mix).</td></tr>
+  <tr><td><code>connectMod(dst, param, depth)</code></td><td><span class="param">dst</span> module, <span class="param">param</span> string, <span class="param">depth</span> number</td><td>nil</td><td>Wire this osc as a control-rate modulator of <code>dst.param</code>.</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="c">-- Sawtooth at A2 with 50% amplitude</span>
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"saw"</span>, <span class="num">110.0</span>)
+osc:<span class="fn">setAmplitude</span>(<span class="num">0.5</span>)
+<span class="fn">Output.set</span>(osc)
+
+<span class="c">-- Change to square wave after 1 second</span>
+<span class="fn">SDL.delay</span>(<span class="num">1000</span>)
+osc:<span class="fn">setWaveform</span>(<span class="str">"square"</span>)</pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Noise                                                                -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-noise">
+<h3>Noise — White Noise Source</h3>
+<p>
+  Generates white noise: random samples from [−1, 1] uniformly distributed.
+  White noise contains equal power at all frequencies — ideal as a filter
+  input for drum synthesis and texture.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Description</th></tr>
+  <tr><td><em>none</em></td><td>—</td><td><code>Noise.new()</code> takes no arguments</td></tr>
+</table>
+<pre><span class="kw">local</span> n = <span class="fn">Noise.new</span>()</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setAmplitude(amp)</code></td><td><span class="param">amp</span> <span class="type">number</span> — [0,1]</td><td>nil</td><td>Set output gain.</td></tr>
+  <tr><td><code>connect(src)</code></td><td><span class="param">src</span> <span class="type">module</span></td><td>nil</td><td>Add an audio input (not typical for noise, but supported).</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="c">-- White noise through a tight bandpass — snare drum texture</span>
+<span class="kw">local</span> noise = <span class="fn">Noise.new</span>()
+noise:<span class="fn">setAmplitude</span>(<span class="num">0.3</span>)
+<span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"svf"</span>)
+flt:<span class="fn">setInput</span>(noise)
+flt:<span class="fn">setCutoff</span>(<span class="num">3000</span>)
+flt:<span class="fn">setResonance</span>(<span class="num">3.0</span>)
+flt:<span class="fn">setMode</span>(<span class="str">"bandpass"</span>)
+<span class="fn">Output.set</span>(flt)</pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Filter                                                               -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-filter">
+<h3>Filter — State-Variable Filter &amp; Moog Ladder</h3>
+<p>Two filter topologies:</p>
+<ul>
+  <li>
+    <strong>SVF</strong> (Chamberlin State-Variable Filter) — simultaneous lowpass / bandpass /
+    highpass outputs. Very stable across the cutoff range. Update equations per sample:
+    <code>low += f*band; high = in - low - q*band; band += f*high</code>
+  </li>
+  <li>
+    <strong>Moog</strong> — 4-stage lowpass ladder with resonance feedback. Models transistor
+    saturation with <code>fast_tanhf()</code>. Classic warm sound; self-oscillates at resonance ≈ 1.
+  </li>
+</ul>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Values</th><th>Description</th></tr>
+  <tr><td class="param">type</td><td class="type">string</td><td><code>"svf"</code> <code>"moog"</code></td><td>Filter topology</td></tr>
+</table>
+<pre><span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"svf"</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setInput(src)</code></td><td><span class="param">src</span> <span class="type">module</span></td><td>nil</td><td>Connect upstream audio source.</td></tr>
+  <tr><td><code>setCutoff(hz)</code></td><td><span class="param">hz</span> <span class="type">number</span> — [20, 20000]</td><td>nil</td><td>Set cutoff frequency. Thread-safe.</td></tr>
+  <tr><td><code>setResonance(res)</code></td><td><span class="param">res</span> <span class="type">number</span> — SVF [0,4], Moog [0,1]</td><td>nil</td><td>Set resonance/Q.</td></tr>
+  <tr><td><code>setMode(mode)</code></td><td><span class="param">mode</span> <span class="type">string</span> — <code>"lowpass"</code> <code>"bandpass"</code> <code>"highpass"</code></td><td>nil</td><td>SVF output tap (Moog is always lowpass).</td></tr>
+  <tr><td><code>connectMod(src, param, depth)</code></td><td><span class="param">src</span> module, <span class="param">param</span> <code>"cutoff"</code>, <span class="param">depth</span> number</td><td>nil</td><td>Wire an LFO as a cutoff modulator.</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"saw"</span>, <span class="num">220</span>)
+<span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"moog"</span>)
+flt:<span class="fn">setInput</span>(osc)
+flt:<span class="fn">setCutoff</span>(<span class="num">1200</span>)
+flt:<span class="fn">setResonance</span>(<span class="num">0.8</span>)
+<span class="fn">Output.set</span>(flt)</pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- LFO                                                                  -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-lfo">
+<h3>LFO — Low-Frequency Oscillator</h3>
+<p>
+  Structurally identical to <code>Osc</code> but intended for control-rate use
+  (0.01–20 Hz). Connect it to a target module's parameter with
+  <code>connectMod()</code> to create periodic modulation.
+</p>
+<p>
+  The LFO's <code>process()</code> output is in [−1, 1] and is scaled by the
+  <code>depth</code> value specified in <code>connectMod()</code>.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">waveform</td><td class="type">string</td><td><code>"sine"</code> <code>"square"</code> <code>"saw"</code> <code>"triangle"</code></td><td>LFO shape</td></tr>
+  <tr><td class="param">rate</td><td class="type">number</td><td>0.01 – 20 Hz</td><td>LFO rate</td></tr>
+</table>
+<pre><span class="kw">local</span> lfo = <span class="fn">LFO.new</span>(<span class="str">"sine"</span>, <span class="num">0.5</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setFrequency(hz)</code></td><td><span class="param">hz</span> <span class="type">number</span></td><td>nil</td><td>Update LFO rate.</td></tr>
+  <tr><td><code>setDepth(d)</code></td><td><span class="param">d</span> <span class="type">number</span> — [0,1]</td><td>nil</td><td>Scale LFO output amplitude.</td></tr>
+  <tr><td><code>setWaveform(name)</code></td><td><span class="param">name</span> <span class="type">string</span></td><td>nil</td><td>Change LFO shape.</td></tr>
+  <tr><td><code>connectMod(dst, param, depth)</code></td><td><span class="param">dst</span> module, <span class="param">param</span> string, <span class="param">depth</span> number</td><td>nil</td><td>Wire this LFO as a modulator. <code>depth</code> is in the units of the target parameter (Hz for frequency/cutoff, etc.).</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"svf"</span>)
+flt:<span class="fn">setInput</span>(<span class="fn">Osc.new</span>(<span class="str">"saw"</span>, <span class="num">220</span>))
+flt:<span class="fn">setCutoff</span>(<span class="num">800</span>)
+
+<span class="c">-- LFO sweeps cutoff ±600 Hz at 0.5 Hz</span>
+<span class="kw">local</span> lfo = <span class="fn">LFO.new</span>(<span class="str">"sine"</span>, <span class="num">0.5</span>)
+lfo:<span class="fn">connectMod</span>(flt, <span class="str">"cutoff"</span>, <span class="num">600</span>)
+
+<span class="fn">Output.set</span>(flt)</pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Envelope                                                             -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-envelope">
+<h3>Envelope — ADSR Envelope Generator</h3>
+<p>
+  Shapes the amplitude of its input signal through four stages:
+</p>
+<div class="diagram" style="font-size: 12px; line-height:1.4;">
+  <div style="display:flex; align-items: flex-end; gap: 0; height: 80px; padding-bottom: 4px;">
+    <div style="writing-mode: vertical-rl; color:#8b949e; font-size:11px; margin-right:8px;">Level</div>
+    <div style="display:flex; align-items: flex-end; gap: 0;">
+      <div style="width:40px; background: linear-gradient(to top right, #0d3321, #3fb950); height:70px; display:flex; align-items: flex-end; justify-content: center; color:var(--accent2); font-size:11px; padding-bottom:2px;">A</div>
+      <div style="width:40px; background: linear-gradient(to bottom right, #3fb950, #d29922); height:70px; display:flex; align-items: flex-end; justify-content: center; color:var(--accent3); font-size:11px; padding-bottom:2px;">D</div>
+      <div style="width:60px; background: #1f2800; height:50px; display:flex; align-items: flex-end; justify-content: center; border: 1px solid #d29922; color:var(--accent3); font-size:11px; padding-bottom:2px;">S</div>
+      <div style="width:40px; background: linear-gradient(to bottom right, #1f2800, #0d1117); height:50px; display:flex; align-items: flex-end; justify-content: center; color:#8b949e; font-size:11px; padding-bottom:2px;">R</div>
+    </div>
+  </div>
+  <div style="color:#8b949e; font-size:11px; margin-left:20px;">──────────────────────────── Time →</div>
+</div>
+<p>
+  <code>trigger()</code> starts the Attack stage. <code>release()</code> starts the Release stage.
+  Both use C11 <code>_Atomic</code> stores — safe to call from any thread, no SDL lock needed.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">attack</td><td class="type">number</td><td>0.001 – 10 s</td><td>Attack time in seconds</td></tr>
+  <tr><td class="param">decay</td><td class="type">number</td><td>0.001 – 10 s</td><td>Decay time in seconds</td></tr>
+  <tr><td class="param">sustain</td><td class="type">number</td><td>0 – 1</td><td>Sustain level</td></tr>
+  <tr><td class="param">release</td><td class="type">number</td><td>0.001 – 10 s</td><td>Release time in seconds</td></tr>
+</table>
+<pre><span class="kw">local</span> env = <span class="fn">Envelope.new</span>(<span class="num">0.01</span>, <span class="num">0.1</span>, <span class="num">0.7</span>, <span class="num">0.3</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setInput(src)</code></td><td><span class="param">src</span> <span class="type">module</span></td><td>nil</td><td>Connect upstream audio to shape.</td></tr>
+  <tr><td><code>trigger()</code></td><td>—</td><td>nil</td><td>Start attack. Atomic — thread-safe.</td></tr>
+  <tr><td><code>release()</code></td><td>—</td><td>nil</td><td>Start release. Atomic — thread-safe.</td></tr>
+  <tr><td><code>setAttack(s)</code></td><td><span class="param">s</span> <span class="type">number</span> seconds</td><td>nil</td><td>Update attack time.</td></tr>
+  <tr><td><code>setDecay(s)</code></td><td><span class="param">s</span> <span class="type">number</span> seconds</td><td>nil</td><td>Update decay time.</td></tr>
+  <tr><td><code>setSustain(level)</code></td><td><span class="param">level</span> <span class="type">number</span> [0,1]</td><td>nil</td><td>Update sustain level.</td></tr>
+  <tr><td><code>setRelease(s)</code></td><td><span class="param">s</span> <span class="type">number</span> seconds</td><td>nil</td><td>Update release time.</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440</span>)
+<span class="kw">local</span> env = <span class="fn">Envelope.new</span>(<span class="num">0.005</span>, <span class="num">0.1</span>, <span class="num">0.5</span>, <span class="num">0.2</span>)
+env:<span class="fn">setInput</span>(osc)
+<span class="fn">Output.set</span>(env)
+
+<span class="c">-- Pluck three notes</span>
+<span class="kw">for</span> i = <span class="num">1</span>, <span class="num">3</span> <span class="kw">do</span>
+    env:<span class="fn">trigger</span>()
+    <span class="fn">SDL.delay</span>(<span class="num">400</span>)
+<span class="kw">end</span></pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Delay                                                                -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-delay">
+<h3>Delay — Circular Buffer Delay Line</h3>
+<p>
+  Stores audio in a pre-allocated circular buffer and plays it back after a
+  configurable delay time. Feedback creates echo trails; wet/dry mixing
+  controls the balance between direct and delayed signal.
+</p>
+<p>
+  Buffer is pre-allocated at <code>delay_create()</code> time for
+  <code>DELAY_MAX_TIME_SECONDS = 2.0</code> seconds — no allocation in the audio callback.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">delay_time</td><td class="type">number</td><td>0.001 – 2.0 s</td><td>Initial delay time in seconds</td></tr>
+  <tr><td class="param">feedback</td><td class="type">number</td><td>0 – 0.99</td><td>Feedback gain (0 = one echo, 0.99 = long tail)</td></tr>
+</table>
+<pre><span class="kw">local</span> dly = <span class="fn">Delay.new</span>(<span class="num">0.375</span>, <span class="num">0.55</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>setInput(src)</code></td><td><span class="param">src</span> <span class="type">module</span></td><td>nil</td><td>Connect upstream audio source.</td></tr>
+  <tr><td><code>setDelayTime(s)</code></td><td><span class="param">s</span> <span class="type">number</span> [0.001, 2.0]</td><td>nil</td><td>Update delay time. Thread-safe.</td></tr>
+  <tr><td><code>setFeedback(f)</code></td><td><span class="param">f</span> <span class="type">number</span> [0, 0.99]</td><td>nil</td><td>Update feedback amount.</td></tr>
+  <tr><td><code>setWet(w)</code></td><td><span class="param">w</span> <span class="type">number</span> [0,1]</td><td>nil</td><td>Delayed signal mix level.</td></tr>
+  <tr><td><code>setDry(d)</code></td><td><span class="param">d</span> <span class="type">number</span> [0,1]</td><td>nil</td><td>Direct signal mix level.</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440</span>)
+<span class="kw">local</span> dly = <span class="fn">Delay.new</span>(<span class="num">0.4</span>, <span class="num">0.6</span>)
+dly:<span class="fn">setInput</span>(osc)
+dly:<span class="fn">setWet</span>(<span class="num">0.5</span>)
+dly:<span class="fn">setDry</span>(<span class="num">1.0</span>)
+<span class="fn">Output.set</span>(dly)</pre>
+</div>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Clock                                                                -->
+<!-- ------------------------------------------------------------------ -->
+<div class="module-section" id="mod-clock">
+<h3>Clock — BPM Tempo Clock</h3>
+<p>
+  Generates beat events at a configurable tempo. The clock operates on the
+  audio thread (using a phase accumulator identical to the oscillator), pushing
+  <code>RingEvent</code> values into a lock-free SPSC ring buffer each beat.
+  The main thread drains the ring buffer and calls the registered Lua callback.
+</p>
+<p>
+  The clock produces no audio — it is a control-only module. It outputs silence
+  and is wired into the output module's input list so it gets processed each frame.
+</p>
+
+<h4>Constructor</h4>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">bpm</td><td class="type">number</td><td>1 – 300</td><td>Beats per minute</td></tr>
+</table>
+<pre><span class="kw">local</span> clk = <span class="fn">Clock.new</span>(<span class="num">120</span>)</pre>
+
+<h4>Methods</h4>
+<table>
+  <tr><th>Method</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>start()</code></td><td>—</td><td>nil</td><td>Begin generating beats. Also wires clock into output module's inputs.</td></tr>
+  <tr><td><code>stop()</code></td><td>—</td><td>nil</td><td>Pause the clock.</td></tr>
+  <tr><td><code>setBPM(bpm)</code></td><td><span class="param">bpm</span> <span class="type">number</span></td><td>nil</td><td>Change tempo. Thread-safe.</td></tr>
+  <tr><td><code>onBeat(fn)</code></td><td><span class="param">fn</span> <span class="type">function(beat)</span></td><td>nil</td><td>Register a Lua callback called each beat with the beat number.</td></tr>
+</table>
+
+<h4>Example</h4>
+<pre><span class="kw">local</span> notes = { <span class="num">60</span>, <span class="num">64</span>, <span class="num">67</span>, <span class="num">72</span> }
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="fn">midi_to_freq</span>(<span class="num">60</span>))
+<span class="fn">Output.set</span>(osc)
+
+<span class="kw">local</span> clk = <span class="fn">Clock.new</span>(<span class="num">120</span>)
+clk:<span class="fn">onBeat</span>(<span class="kw">function</span>(beat)
+    <span class="kw">local</span> note = notes[((beat - <span class="num">1</span>) % <span class="num">#</span>notes) + <span class="num">1</span>]
+    osc:<span class="fn">setFrequency</span>(<span class="fn">midi_to_freq</span>(note))
+<span class="kw">end</span>)
+clk:<span class="fn">start</span>()</pre>
+</div>
+
+<hr>
+
+<!-- ================================================================== -->
+<!-- Global Functions                                                     -->
+<!-- ================================================================== -->
+<h2>Global Functions</h2>
+
+<!-- Output -->
+<div class="module-section" id="output">
+<h3>Output</h3>
+<p>The global audio output sink. Exactly one module routes audio to the speakers.</p>
+<table>
+  <tr><th>Function</th><th>Arguments</th><th>Returns</th><th>Description</th></tr>
+  <tr><td><code>Output.set(mod)</code></td><td><span class="param">mod</span> <span class="type">module</span></td><td>nil</td><td>Designate <code>mod</code> as the final audio output. Thread-safe.</td></tr>
+  <tr><td><code>Output.get()</code></td><td>—</td><td><span class="ret">module or nil</span></td><td>Return the current output module.</td></tr>
+</table>
+<pre><span class="fn">Output.set</span>(my_filter)   <span class="c">-- route filter output to speakers</span></pre>
+</div>
+
+<!-- midi_to_freq -->
+<div class="module-section" id="midi">
+<h3>midi_to_freq(note)</h3>
+<p>
+  Converts a MIDI note number to a frequency in Hz using equal temperament:
+  <code>freq = 440 × 2^((note − 69) / 12)</code>
+</p>
+<table>
+  <tr><th>Argument</th><th>Type</th><th>Range</th><th>Description</th></tr>
+  <tr><td class="param">note</td><td class="type">number</td><td>0 – 127</td><td>MIDI note number (69 = A4 = 440 Hz)</td></tr>
+</table>
+<pre><span class="fn">midi_to_freq</span>(<span class="num">69</span>)   <span class="c">-- → 440.0 Hz  (A4)</span>
+<span class="fn">midi_to_freq</span>(<span class="num">60</span>)   <span class="c">-- → 261.6 Hz  (C4 middle C)</span>
+<span class="fn">midi_to_freq</span>(<span class="num">21</span>)   <span class="c">-- → 27.5 Hz   (A0 lowest piano key)</span></pre>
+</div>
+
+<!-- SDL.delay -->
+<div class="module-section" id="sdl">
+<h3>SDL.delay(ms)</h3>
+<p>
+  Pause script execution for <code>ms</code> milliseconds. The SDL audio thread
+  continues running during the delay — use this in scripts for timed events
+  without blocking audio.
+</p>
+<pre><span class="fn">SDL.delay</span>(<span class="num">1000</span>)   <span class="c">-- pause 1 second; audio keeps playing</span></pre>
+</div>
+
+<hr>
+
+<!-- ================================================================== -->
+<!-- Composition Guide                                                    -->
+<!-- ================================================================== -->
+<h2 id="composition">Composition Guide</h2>
+<p>
+  LuaSynth patches are built by creating modules and connecting them.
+  Here are the common patterns.
+</p>
+
+<h3>Pattern 1: Simple Signal Chain</h3>
+<p>The most basic pattern: source → processing → output.</p>
+<pre><span class="c">-- Source → Filter → Output</span>
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"saw"</span>, <span class="num">220</span>)
+<span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"svf"</span>)
+flt:<span class="fn">setInput</span>(osc)
+flt:<span class="fn">setCutoff</span>(<span class="num">1000</span>)
+<span class="fn">Output.set</span>(flt)</pre>
+
+<h3>Pattern 2: LFO Modulation</h3>
+<p>
+  An LFO modulates a parameter (cutoff, frequency) by being wired as a
+  control-rate input. The <code>depth</code> argument is in the units of the
+  target parameter.
+</p>
+<pre><span class="c">-- LFO sweeps filter cutoff ±800 Hz at 0.5 Hz</span>
+<span class="kw">local</span> lfo = <span class="fn">LFO.new</span>(<span class="str">"sine"</span>, <span class="num">0.5</span>)
+lfo:<span class="fn">connectMod</span>(flt, <span class="str">"cutoff"</span>, <span class="num">800</span>)
+
+<span class="c">-- LFO adds vibrato to oscillator pitch (±5 Hz)</span>
+<span class="kw">local</span> vib = <span class="fn">LFO.new</span>(<span class="str">"sine"</span>, <span class="num">5</span>)
+vib:<span class="fn">connectMod</span>(osc, <span class="str">"frequency"</span>, <span class="num">5</span>)</pre>
+
+<h3>Pattern 3: Envelope Shaping</h3>
+<p>
+  Envelopes shape the amplitude of a signal. Trigger them from a clock callback
+  for rhythmic patterns.
+</p>
+<pre><span class="kw">local</span> env = <span class="fn">Envelope.new</span>(<span class="num">0.005</span>, <span class="num">0.1</span>, <span class="num">0.3</span>, <span class="num">0.2</span>)
+env:<span class="fn">setInput</span>(osc)
+
+<span class="kw">local</span> clk = <span class="fn">Clock.new</span>(<span class="num">120</span>)
+clk:<span class="fn">onBeat</span>(<span class="kw">function</span>(beat)
+    env:<span class="fn">trigger</span>()   <span class="c">-- atomic — safe from this callback</span>
+<span class="kw">end</span>)
+clk:<span class="fn">start</span>()
+<span class="fn">Output.set</span>(env)</pre>
+
+<h3>Pattern 4: Additive Mixing</h3>
+<p>
+  Connect multiple sources to the same module using <code>connect()</code>.
+  The receiving module sums all its audio inputs.
+</p>
+<pre><span class="c">-- Two oscillators mixed together</span>
+<span class="kw">local</span> osc1 = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440</span>)
+<span class="kw">local</span> osc2 = <span class="fn">Osc.new</span>(<span class="str">"sine"</span>, <span class="num">440</span> * <span class="num">1.003</span>)  <span class="c">-- slightly detuned</span>
+osc1:<span class="fn">setAmplitude</span>(<span class="num">0.4</span>)
+osc2:<span class="fn">setAmplitude</span>(<span class="num">0.4</span>)
+osc1:<span class="fn">connect</span>(osc2)   <span class="c">-- mix osc2 into osc1's output</span>
+<span class="fn">Output.set</span>(osc1)</pre>
+
+<h3>Pattern 5: Full Voice (Oscillator + Filter + Envelope + Delay)</h3>
+<pre><span class="c">-- Complete synthesiser voice</span>
+<span class="kw">local</span> osc = <span class="fn">Osc.new</span>(<span class="str">"saw"</span>, <span class="fn">midi_to_freq</span>(<span class="num">60</span>))
+osc:<span class="fn">setAmplitude</span>(<span class="num">0.5</span>)
+
+<span class="kw">local</span> flt = <span class="fn">Filter.new</span>(<span class="str">"moog"</span>)
+flt:<span class="fn">setInput</span>(osc)
+flt:<span class="fn">setCutoff</span>(<span class="num">1200</span>)
+flt:<span class="fn">setResonance</span>(<span class="num">0.5</span>)
+
+<span class="kw">local</span> lfo = <span class="fn">LFO.new</span>(<span class="str">"sine"</span>, <span class="num">0.3</span>)
+lfo:<span class="fn">connectMod</span>(flt, <span class="str">"cutoff"</span>, <span class="num">800</span>)
+
+<span class="kw">local</span> env = <span class="fn">Envelope.new</span>(<span class="num">0.01</span>, <span class="num">0.2</span>, <span class="num">0.5</span>, <span class="num">0.4</span>)
+env:<span class="fn">setInput</span>(flt)
+
+<span class="kw">local</span> dly = <span class="fn">Delay.new</span>(<span class="num">0.3</span>, <span class="num">0.4</span>)
+dly:<span class="fn">setInput</span>(env)
+dly:<span class="fn">setWet</span>(<span class="num">0.4</span>)
+dly:<span class="fn">setDry</span>(<span class="num">1.0</span>)
+
+<span class="fn">Output.set</span>(dly)</pre>
+
+<hr>
+
+<!-- ================================================================== -->
+<!-- Build Guide                                                          -->
+<!-- ================================================================== -->
+<h2 id="build">Build Guide</h2>
+
+<h3>macOS (Homebrew)</h3>
+<pre><span class="c"># Install dependencies</span>
+brew install sdl2 lua
+
+<span class="c"># Build</span>
+make
+
+<span class="c"># Run examples</span>
+make run-01     <span class="c"># 440 Hz sine tone</span>
+make run-02     <span class="c"># filtered sawtooth with cutoff sweep</span>
+make run-03     <span class="c"># LFO modulation</span>
+make run-04     <span class="c"># rhythmic melody with envelopes</span>
+make run-05     <span class="c"># delay echo</span>
+make run-06     <span class="c"># full patch</span></pre>
+
+<h3>Linux (apt — Debian/Ubuntu)</h3>
+<pre><span class="c"># Install dependencies</span>
+sudo apt install libsdl2-dev lua5.4 liblua5.4-dev
+
+<span class="c"># Build and run</span>
+make run-01</pre>
+
+<h3>Linux (dnf — Fedora/RHEL)</h3>
+<pre>sudo dnf install SDL2-devel lua-devel
+make run-01</pre>
+
+<h3>Custom script</h3>
+<pre><span class="c"># Run any Lua script directly</span>
+./luasynth my_patch.lua</pre>
+
+<h3>Build targets</h3>
+<table>
+  <tr><th>Target</th><th>Description</th></tr>
+  <tr><td><code>make</code> / <code>make all</code></td><td>Build the <code>luasynth</code> binary</td></tr>
+  <tr><td><code>make clean</code></td><td>Remove object files and binary</td></tr>
+  <tr><td><code>make run</code></td><td>Build and run <code>scripts/startup.lua</code></td></tr>
+  <tr><td><code>make run-01</code> … <code>run-06</code></td><td>Build and run the corresponding example</td></tr>
+</table>
+
+<hr>
+<p style="text-align:center; color:#8b949e; font-size:12px; padding: 24px 0;">
+  LuaSynth — built with SDL2 and Lua 5.4 — pure C, no C++
+</p>
+
+</main>
+</div>
+</body>
+</html>
